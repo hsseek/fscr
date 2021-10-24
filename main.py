@@ -49,7 +49,7 @@ last_pause = 0
 
 
 def __tail(iterable, n: int):
-    # tail(3, 'A B C D E') returns 'E F G'
+    # tail([A, B, C, D, E], 3) returns [E, F, G]
     return iter(collections.deque(iterable, maxlen=n))
 
 
