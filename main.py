@@ -75,8 +75,8 @@ def scan(target_id: int, scan_count: int):
     # Now scan the new replies.
     for reply in new_replies:
         for links in reply.select('a.link'):
-            download_url = links['href']
-            downloader.download(download_url, str(target_id))
+            page_link_url = links['href']
+            downloader.download(page_link_url, str(target_id))
 
 
 def fluctuate(value):
