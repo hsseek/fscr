@@ -53,19 +53,20 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('이미지가 삭제된 주소입니다.')
+                log(source_id + ': 이미지가 삭제된 주소입니다.')
             else:
                 log('Unknown error with:\n\n' + soup.prettify())
-        else:
-            if target_tag['href'].split('.')[-1] == 'dn':
-                log('삭제된 이미지입니다.jpg')  # Likely to be a file in a wrong format
-            else:  # The page available
-                target_url = target_tag['href']  # url of the file to download
-                target_extension = target_url.split('.')[-1]
+        else:  # <link> tag present
+            target_url = target_tag['href']  # url of the file to download
+            target_extension = target_url.split('.')[-1]
+            if target_extension == 'dn':
+                log('삭제된 이미지입니다: image.dn')  # Likely to be a file in a wrong format
+            else:
                 str_index = page_url.split('/')[-1][1:]  # k7Rt
                 int_index = __format_url_index(__get_url_index(page_url))
                 local_name = int_index + '-' + str_index + '-' + source_id + '.' + target_extension
                 return [target_url, local_name]
+
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpfiles.org':
         log('Unusual upload: tmpfiles.org')

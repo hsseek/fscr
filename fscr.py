@@ -102,7 +102,6 @@ while True:
     log('MySQL connection opened.')
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
-    # TODO: Remove the try block to debug.
     try:
         # Open the browser
         browser.get(ROOT_DOMAIN + LOGIN_PATH)
@@ -163,7 +162,6 @@ while True:
             pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
             fluctuated_pause = fluctuate(pause)
 
-            # TODO: log to a local file
             log('%.1f(%.1f)\t' % (elapsed_for_scanning + last_pause, elapsed_for_scanning)
                 # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
