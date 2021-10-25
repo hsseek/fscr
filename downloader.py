@@ -47,9 +47,6 @@ def download(page_url: str, source_id: str):
 def __extract_download_target(page_url: str, source_id: str) -> []:
     domain = urlparse(page_url).netloc.replace('www', '')
     if domain == 'imgdb.in':
-        # TODO: Don't try downloading if the file is not available.
-        # TODO: Retrieve the original extension (instead of assuming jpg)
-        # TODO: Format to 'a82s-107432.jpg'
         source = requests.get(page_url).text
         soup = BeautifulSoup(source, 'html.parser')
         target_tag = soup.select_one('link')
@@ -65,26 +62,45 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
             else:  # The page available
                 target_url = target_tag['href']  # url of the file to download
                 target_extension = target_url.split('.')[-1]
-                imgdb_id = page_url.split('/')[-1]
-                local_name = imgdb_id + '-' + source_id + '.' + target_extension
+                str_index = page_url.split('/')[-1][1:]  # k7Rt
+                int_index = __format_url_index(__get_url_index(page_url))
+                local_name = int_index + '-' + str_index + '-' + source_id + '.' + target_extension
                 return [target_url, local_name]
+    # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpfiles.org':
-        # TODO: Download the source file.
         log('Unusual upload: tmpfiles.org')
     elif domain == 'tmpstorage.com':
-        # TODO: Download the source file.
         log('Unusual upload: tmpstorage.org')
     elif domain == 'https://sendvid.com/':
-        # TODO: Notify to find out how often the site is used.
         log('Unusual upload: sendvid.org')
     else:
-        # TODO: Unknown source page. Email the pattern
         log('Unknown source: ' + page_url)
         target_url = page_url.split('/')[-1] + '.jpg'  # Guessing the file url (Hardly works)
         return [target_url, target_url]
 
 
-def split_on_last_pattern(string: str, pattern: str) -> []:
+def __get_url_index(url: str) -> []:
+    url_index = []  # for example, url_index = [3, 5, 1, 9] (a list of int)
+    str_index = __split_on_last_pattern(url, '/')[-1]  # 'a3Fx' from 'https://domain.com/a3Fx'
+    with open('SEQUENCE.pv', 'r') as file:
+        sequence = file.read().split('\n')
+
+    for char in str_index:  # a -> 3 -> F -> x
+        for n, candidates in enumerate(sequence):
+            if char == candidates:
+                url_index.append(n)  # Found the matching index
+                break
+    return url_index
+
+
+def __format_url_index(url_index: []) -> str:
+    formatted_index = ''
+    for index in url_index:
+        formatted_index += '%02d' % index
+    return formatted_index
+
+
+def __split_on_last_pattern(string: str, pattern: str) -> []:
     last_piece = string.split(pattern)[-1]  # domain.com/image.jpg -> jpg
     leading_chunks = string.split(pattern)[:-1]  # [domain, com/image]
     leading_piece = pattern.join(leading_chunks)  # domain.com/image
