@@ -22,6 +22,7 @@ def read_from_file(path: str):
 DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
 ROOT_DOMAIN = read_from_file('ROOT_DOMAIN.pv')
 LOGIN_PATH = read_from_file('LOGIN_PATH.pv')
+LOG_PATH = read_from_file('LOG_PATH.pv')
 CAUTION_PATH = '/caution'
 HTML_TIMEOUT = 5
 
@@ -48,6 +49,12 @@ sum_new_reply_count_last_time = 0
 last_pause = 0
 
 
+def log(message: str):
+    with open(LOG_PATH, 'a') as f:
+        f.write(message + '\n')
+    print(message)
+
+
 def __tail(iterable, n: int):
     # tail([A, B, C, D, E], 3) returns [E, F, G]
     return iter(collections.deque(iterable, maxlen=n))
@@ -59,8 +66,8 @@ def scan(target_id: int, scan_count: int):
     wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
     try:
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply')))
-    except Exception as e:
-        print('Reply not present on %i: %s' % (target_id, str(e).splitlines()[-1]))
+    except Exception as scan_exception:
+        log('Reply not present on %i: %s' % (target_id, str(scan_exception).splitlines()[-1]))
 
     # Get the thread list and the scanning targets(the new replies)
     thread_soup = BeautifulSoup(browser.page_source, 'html.parser')
@@ -92,7 +99,7 @@ def get_proper_pause(new_reply_count: int):
 while True:
     # Connect to the database
     thread_db = sqlite.ThreadDb()
-    print('MySQL connection opened.')
+    log('MySQL connection opened.')
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
     # TODO: Remove the try block to debug.
@@ -109,7 +116,7 @@ while True:
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         # <a class = "btn logout" ...> 구조가 존재하지만 By.CLASS_NAME, 'btn logout' 은 작동하지 않음.
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        print('Login successful.')
+        log('Login successful.')
 
         # A random cycle number n
         cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -157,13 +164,13 @@ while True:
             fluctuated_pause = fluctuate(pause)
 
             # TODO: log to a local file
-            print('%.1f(%.1f)\t' % (elapsed_for_scanning + last_pause, elapsed_for_scanning)
-                  # Actual pause(Time spent on scanning)
-                  + str(sum_new_reply_count) + ' new\t'
-                  # New reply count on refresh the thread list page+
-                  + ': %.1f\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
-                  + '-> %1.f(%1.f) \t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
-                  + str(datetime.datetime.now()).split('.')[0])  # Timestamp
+            log('%.1f(%.1f)\t' % (elapsed_for_scanning + last_pause, elapsed_for_scanning)
+                # Actual pause(Time spent on scanning)
+                + str(sum_new_reply_count) + ' new\t'
+                # New reply count on refresh the thread list page+
+                + ': %.1f\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
+                + '-> %1.f(%1.f) \t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + str(datetime.datetime.now()).split('.')[0])  # Timestamp
 
             # Store for the next use.
             last_pause = fluctuated_pause
@@ -171,11 +178,11 @@ while True:
 
             # Sleep to show random behavior.
             time.sleep(fluctuated_pause)
-    except Exception as e:
+    except Exception as main_loop_exception:
         # TODO: Print the parsed html and e
-        print('(%s) Error on %d: %s ' % (datetime.datetime.now(), thread_id, e))
+        log('(%s) Error on %d: %s ' % (datetime.datetime.now(), thread_id, main_loop_exception))
 
     # Close connection to the db
     thread_db.close_connection()
-    print('MySQL connection closed.')
+    log('MySQL connection closed.')
     time.sleep(3)
