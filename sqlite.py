@@ -47,7 +47,15 @@ class ThreadDb:
         thread_cursor = self.thread_db.cursor()
         query = "INSERT INTO " + Table.NAME + \
                 " (" + Table.C0 + ", " + Table.C1 + ")" \
-                                                    "VALUES (" + str(thread_id) + ", " + str(count) + ")"
+                " VALUES (" + str(thread_id) + ", " + str(count) + ")"
+        thread_cursor.execute(query)
+        self.thread_db.commit()
+        thread_cursor.close()
+
+    def delete_thread(self, thread_id: int):
+        thread_cursor = self.thread_db.cursor()
+        query = "DELETE FROM " + Table.NAME + \
+                " WHERE " + Table.C0 + "=" + str(thread_id)
         thread_cursor.execute(query)
         self.thread_db.commit()
         thread_cursor.close()

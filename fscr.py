@@ -60,7 +60,7 @@ def __tail(iterable, n: int):
     return iter(collections.deque(iterable, maxlen=n))
 
 
-def scan(target_id: int, scan_count: int):
+def scan_replies(target_id: int, scan_count: int):
     try:
         # Open the page to scan
         browser.get(ROOT_DOMAIN + CAUTION_PATH + "/" + str(target_id))
@@ -111,6 +111,30 @@ def get_proper_pause(new_reply_count: int):
     return PAUSE_IDLE / ((new_reply_count ** PAUSE_POWER) + 1)
 
 
+def scan_threads(soup) -> int:
+    global thread_id
+    global thread_db
+    for element in soup.select('a.thread-list-item'):
+        # Get how many threads have been uploaded since the last check.
+        thread_id = int(str(element['href']).split('/')[-1])
+        row_count = element.select_one('span.count').string
+        if row_count == '완결':
+            thread_db.delete_thread(thread_id)
+            log('%s reached the limit.' % (ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
+            count = int(300)
+        else:
+            count = int(row_count)  # A natural number (타래 세울 때 1)
+
+        # Check if the count has been increased.
+        # If so, scan to check if there are links.
+        reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
+        if reply_count_to_scan > 0:
+            scan_replies(thread_id, reply_count_to_scan)
+            return reply_count_to_scan
+    return 0
+
+
+# The main loop
 while True:
     # Connect to the database
     thread_db = sqlite.ThreadDb()
@@ -146,26 +170,10 @@ while True:
             # Get the thread list.
             browser.get(ROOT_DOMAIN + CAUTION_PATH)
             wait.until(expected_conditions.presence_of_all_elements_located((By.CLASS_NAME, 'thread-list-item')))
-            soup = BeautifulSoup(browser.page_source, 'html.parser')
+            threads_soup = BeautifulSoup(browser.page_source, 'html.parser')
 
-            # On a thread, dealing replies
-            for element in soup.select('a.thread-list-item'):
-                # Get how many threads have been uploaded since the last check.
-                # thread_id = int(str(element['href']).strip('/caution/'))
-                thread_id = int(str(element['href']).split('/')[-1])
-                row_count = element.select_one('span.count').string
-                if row_count == '완결':
-                    # TODO: Delete the row from DB and notify
-                    count = int(300)
-                else:
-                    count = int(row_count)  # A natural number (타래 세울 때 1)
-
-                # Check if the count has been increased.
-                # If so, scan to check if there are links.
-                reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
-                if reply_count_to_scan > 0:
-                    scan(thread_id, reply_count_to_scan)
-                    sum_new_reply_count += reply_count_to_scan
+            # Scan thread list and accumulate the number of new replies.
+            sum_new_reply_count += scan_threads(threads_soup)
 
             # Print the time elapsed for scanning.
             scan_end_time = datetime.datetime.now()
