@@ -53,7 +53,7 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log(source_id + ': 이미지가 삭제된 주소입니다.')
+                log(page_url + ' on ' + source_id + ': 이미지가 삭제된 주소입니다.')
             else:
                 log('Unknown error with:\n\n' + soup.prettify())
         else:  # <link> tag present
@@ -69,11 +69,11 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpfiles.org':
-        log('Unusual upload: tmpfiles.org')
+        log('Unusual upload on %s: tmpfiles.org' % page_url)
     elif domain == 'tmpstorage.com':
-        log('Unusual upload: tmpstorage.org')
+        log('Unusual upload on %s: tmpstorage.org' % page_url)
     elif domain == 'https://sendvid.com/':
-        log('Unusual upload: sendvid.org')
+        log('Unusual upload on %s: sendvid.org' % page_url)
     else:
         log('Unknown source: ' + page_url)
         target_url = page_url.split('/')[-1] + '.jpg'  # Guessing the file url (Hardly works)

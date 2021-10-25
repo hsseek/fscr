@@ -152,7 +152,6 @@ while True:
         # browser.get('file:///home/sun/Downloads/threads.html')
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
-        # <a class = "btn logout" ...> 구조가 존재하지만 By.CLASS_NAME, 'btn logout' 은 작동하지 않음.
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
         log('Login successful.')
 
@@ -205,7 +204,7 @@ while True:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             log(err_soup.prettify())
         except Exception as e:
-            log('Failed to thread list page source: %s' % e)
+            log('Error: Failed to thread list page source: %s' % e)
 
     # Close connection to the db
     thread_db.close_connection()
