@@ -61,29 +61,44 @@ def __tail(iterable, n: int):
 
 
 def scan(target_id: int, scan_count: int):
-    # Open the page to scan
-    browser.get(ROOT_DOMAIN + CAUTION_PATH + "/" + str(target_id))
-    wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
     try:
-        wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply')))
+        # Open the page to scan
+        browser.get(ROOT_DOMAIN + CAUTION_PATH + "/" + str(target_id))
+        wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
+        try:
+            wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply',)))
+
+            # Get the thread list and the scanning targets(the new replies)
+            replies_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            replies = replies_soup.select('div.thread-reply > div.th-contents')
+
+            # the new_replies is not a bs4.results but a collection.deque
+            # It is iterable, but does not have select method.
+            # But its elements are Tags so they have select method.
+            # 마지막 n개 자르기 위해 iter 함수 쓰지 않았다면 select 2 번으로 한 줄로 끝냈을 것.
+            new_replies = __tail(replies, scan_count)
+
+            # Now scan the new replies.
+            for reply in new_replies:
+                for links in reply.select('a.link'):
+                    page_link_url = links['href']
+                    downloader.download(page_link_url, str(target_id))
+        except Exception as reply_exception:
+            exception_last_line = str(reply_exception).splitlines()[-1]
+            log('Reply not present on %i: %s' % (target_id, exception_last_line))
+            if not exception_last_line.endswith('start_thread'):  # 'start thread' is Harmless.
+                try:
+                    replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+                    log('Error: html structure\n' + replies_err_soup.prettify())
+                except Exception as scan_exception:
+                    log('Error: Failed to load page source %s: %s' % (target_id, str(scan_exception)))
     except Exception as scan_exception:
-        log('Reply not present on %i: %s' % (target_id, str(scan_exception).splitlines()[-1]))
-
-    # Get the thread list and the scanning targets(the new replies)
-    thread_soup = BeautifulSoup(browser.page_source, 'html.parser')
-    replies = thread_soup.select('div.thread-reply > div.th-contents')
-
-    # the new_replies is not a bs4.results but a collection.deque
-    # It is iterable, but does not have select method.
-    # But its elements are Tags so they have select method.
-    # 마지막 n개 자르기 위해 iter 함수 쓰지 않았다면 select 2 번으로 한 줄로 끝냈을 것.
-    new_replies = __tail(replies, scan_count)
-
-    # Now scan the new replies.
-    for reply in new_replies:
-        for links in reply.select('a.link'):
-            page_link_url = links['href']
-            downloader.download(page_link_url, str(target_id))
+        log('Error: Cannot scan %i: %s' % (target_id, str(scan_exception)))
+        try:
+            replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            log(replies_err_soup.prettify())
+        except Exception as scan_exception:
+            log('Error: Failed to load page source %s: %s' % (target_id, str(scan_exception)))
 
 
 def fluctuate(value):
@@ -177,8 +192,12 @@ while True:
             # Sleep to show random behavior.
             time.sleep(fluctuated_pause)
     except Exception as main_loop_exception:
-        # TODO: Print the parsed html and e
         log('(%s) Error on %d: %s ' % (datetime.datetime.now(), thread_id, main_loop_exception))
+        try:
+            err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            log(err_soup.prettify())
+        except Exception as e:
+            log('Failed to thread list page source: %s' % e)
 
     # Close connection to the db
     thread_db.close_connection()
