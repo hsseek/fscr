@@ -60,6 +60,10 @@ def __tail(iterable, n: int):
     return iter(collections.deque(iterable, maxlen=n))
 
 
+def __get_elapsed_time(start_time) -> float:
+    return (datetime.datetime.now() - start_time).total_seconds()
+
+
 def scan_replies(target_id: int, scan_count: int):
     try:
         # Open the page to scan
@@ -136,6 +140,9 @@ def scan_threads(soup) -> int:
 
 # The main loop
 while True:
+    # Start the session timer
+    session_start_time = datetime.datetime.now()
+
     # Connect to the database
     thread_db = sqlite.ThreadDb()
     log('MySQL connection opened.')
@@ -176,8 +183,8 @@ while True:
 
             # Print the time elapsed for scanning.
             scan_end_time = datetime.datetime.now()
-            # thread-list 든 reply-list 든 로딩 시간 동일하며 이 로딩이 RDS (약 0.7초/page)
-            elapsed_for_scanning = (scan_end_time - scan_start_time).total_seconds()
+            # thread-list 든 reply-list 든 로딩 시간 거의 동일하며 이 로딩이 RDS (~ 0.7s/page)
+            elapsed_for_scanning = __get_elapsed_time(scan_start_time)
 
             proposed_pause = last_pause * random.uniform(1.5, 3.2)
             pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
@@ -187,8 +194,8 @@ while True:
                 # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 # New reply count on refresh the thread list page+
-                + ': %.1f\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
-                + '-> %1.f(%1.f) \t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + '(%.1f) ->\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
+                + '%1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
                 + str(datetime.datetime.now()).split('.')[0])  # Timestamp
 
             # Store for the next use.
@@ -200,7 +207,8 @@ while True:
 
             # Peacefully reached the maximum cycle?
             if i == cycle_number - 1:
-                log(str(i) + 'th cycle finished. Close the browser session.')
+                session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
+                log('%dth cycle finished in %d minutes. Close the browser session.' % (i, int(session_elapsed_minutes)))
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list: %s ' % main_loop_exception)
         try:
