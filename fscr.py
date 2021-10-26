@@ -114,10 +114,10 @@ def get_proper_pause(new_reply_count: int):
 def scan_threads(soup) -> int:
     global thread_id
     global thread_db
-    for element in soup.select('a.thread-list-item'):
+    for thread in soup.select('a.thread-list-item'):
         # Get how many threads have been uploaded since the last check.
-        thread_id = int(str(element['href']).split('/')[-1])
-        row_count = element.select_one('span.count').string
+        thread_id = int(str(thread['href']).split('/')[-1])
+        row_count = thread.select_one('span.count').string
         if row_count == '완결':
             thread_db.delete_thread(thread_id)
             log('%s reached the limit.' % (ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
@@ -176,11 +176,10 @@ while True:
 
             # Print the time elapsed for scanning.
             scan_end_time = datetime.datetime.now()
-            # 한성 노트북에서 새로운 페이지 1개 당 로딩 0.7초 소요
-            # thread-list 든 reply-list 든 로딩 시간 동일하며 이 로딩이 RDS
+            # thread-list 든 reply-list 든 로딩 시간 동일하며 이 로딩이 RDS (약 0.7초/page)
             elapsed_for_scanning = (scan_end_time - scan_start_time).total_seconds()
 
-            proposed_pause = last_pause * 2
+            proposed_pause = last_pause * random.uniform(1.5, 3.2)
             pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
             fluctuated_pause = fluctuate(pause)
 
