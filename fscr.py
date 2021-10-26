@@ -211,7 +211,7 @@ while True:
                 if element['href'] == '/login':
                     print('logged out')
                     # Possibly banned for abuse. Cool down.
-                    time.sleep(180 * random.uniform(1, 1.5))
+                    time.sleep(300 * random.uniform(1, 2))
                     break
                 else:
                     log(err_soup.prettify())

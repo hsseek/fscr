@@ -69,13 +69,13 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpfiles.org':
-        log('Unusual upload on %s: tmpfiles.org' % page_url)
+        log('Unusual upload on %s: tmpfiles.org' % source_id)
     elif domain == 'tmpstorage.com':
-        log('Unusual upload on %s: tmpstorage.org' % page_url)
+        log('Unusual upload on %s: tmpstorage.org' % source_id)
     elif domain == 'https://sendvid.com/':
-        log('Unusual upload on %s: sendvid.org' % page_url)
+        log('Unusual upload on %s: sendvid.org' % source_id)
     else:
-        log('Unknown source: ' + page_url)
+        log('Unknown source on %s: %s' % (source_id, page_url))
 
 
 def __get_url_index(url: str) -> []:
