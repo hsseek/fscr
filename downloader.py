@@ -60,7 +60,7 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
             target_url = target_tag['href']  # url of the file to download
             target_extension = target_url.split('.')[-1]
             if target_extension == 'dn':
-                log('삭제된 이미지입니다: image.dn')  # Likely to be a file in a wrong format
+                log('삭제된 이미지입니다(A gentle error: image.dn)')  # Likely to be a file in a wrong format
             else:
                 str_index = page_url.split('/')[-1][1:]  # k7Rt
                 int_index = __format_url_index(__get_url_index(page_url))
@@ -76,8 +76,6 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
         log('Unusual upload on %s: sendvid.org' % page_url)
     else:
         log('Unknown source: ' + page_url)
-        target_url = page_url.split('/')[-1] + '.jpg'  # Guessing the file url (Hardly works)
-        return [target_url, target_url]
 
 
 def __get_url_index(url: str) -> []:

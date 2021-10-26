@@ -80,12 +80,12 @@ def scan_replies(target_id: int, scan_count: int):
 
             # Now scan the new replies.
             for reply in new_replies:
-                for links in reply.select('a.link'):
-                    page_link_url = links['href']
+                for link in reply.select('a.link'):
+                    page_link_url = link['href']
                     downloader.download(page_link_url, str(target_id))
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            log('Reply not present on %i: %s' % (target_id, exception_last_line))
+            log('No downloadable source on %i: %s' % (target_id, exception_last_line))
             if not exception_last_line.endswith('start_thread'):  # 'start thread' is Harmless.
                 try:
                     replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
@@ -198,15 +198,27 @@ while True:
 
             # Sleep to show random behavior.
             time.sleep(fluctuated_pause)
+
+            # Peacefully reached the maximum cycle?
+            if i == cycle_number - 1:
+                log(str(i) + 'th cycle finished. Close the browser session.')
     except Exception as main_loop_exception:
-        log('(%s) Error on %d: %s ' % (datetime.datetime.now(), thread_id, main_loop_exception))
+        log('Error: Cannot retrieve thread list: %s ' % main_loop_exception)
         try:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')
-            log(err_soup.prettify())
+            side_pane_elements = err_soup.select('div.user-info > a.btn')
+            for element in side_pane_elements:
+                if element['href'] == '/login':
+                    print('logged out')
+                    # Possibly banned for abuse. Cool down.
+                    time.sleep(180 * random.uniform(1, 1.5))
+                    break
+                else:
+                    log(err_soup.prettify())
         except Exception as e:
             log('Error: Failed to thread list page source: %s' % e)
 
     # Close connection to the db
     thread_db.close_connection()
     log('MySQL connection closed.')
-    time.sleep(3)
+    time.sleep(1 * random.uniform(1, 3))
