@@ -90,15 +90,20 @@ def scan_replies(target_id: int, scan_count: int):
                     downloader.download(page_link_url, str(target_id))
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            log('No downloadable source on %i: %s' % (target_id, exception_last_line))
-            if not exception_last_line.endswith('start_thread'):  # 'start thread' is Harmless.
+            log('Warning: Reply scanning failed on %i(%s)' % (target_id, exception_last_line))
+            try:
+                replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
                 try:
-                    replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
-                    log('Error: html structure\n' + replies_err_soup.prettify())
-                except Exception as scan_exception:
-                    log('Error: Failed to load page source %s: %s' % (target_id, str(scan_exception)))
+                    replies_err_soup.find('span', {'class': 'info-txt reply-count'})
+                    if int(str(element.contents[0]).strip()) != 1:
+                        # if 1: No replies present (likely te be "start thread" exception)
+                        log('Error: html structure\n' + replies_err_soup.prettify())
+                except Exception as reply_count_exception:
+                    log('Error: reply count not available(%s).' % reply_count_exception)
+            except Exception as scan_exception:
+                log('Error: Failed to load page source %s(%s)' % (target_id, str(scan_exception)))
     except Exception as scan_exception:
-        log('Error: Cannot scan %i: %s' % (target_id, str(scan_exception)))
+        log('Error: Cannot scan %i(%s)' % (target_id, str(scan_exception)))
         try:
             replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             log(replies_err_soup.prettify())
@@ -175,7 +180,7 @@ while True:
         is_hot = True
 
         # Scan n times on the same login session.
-        while current_cycle_number < 5 and is_hot:
+        while current_cycle_number < sufficient_cycle_number and is_hot:
             # Reset the reply count.
             sum_new_reply_count = 0
 
@@ -224,7 +229,7 @@ while True:
         log('%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
     except Exception as main_loop_exception:
-        log('Error: Cannot retrieve thread list: %s ' % main_loop_exception)
+        log('Error: Cannot retrieve thread list(%s).' % main_loop_exception)
         try:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             side_pane_elements = err_soup.select('div.user-info > a.btn')
@@ -237,7 +242,7 @@ while True:
                 else:
                     log(err_soup.prettify())
         except Exception as e:
-            log('Error: Failed to thread list page source: %s' % e)
+            log('Error: Failed to thread list page source(%s)' % e)
 
     # Delete the finished threads from the db.
     for finished in finished_thread_ids:
