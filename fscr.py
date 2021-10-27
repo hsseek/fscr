@@ -142,6 +142,7 @@ def scan_threads(soup) -> int:
 while True:
     # Start the session timer
     session_start_time = datetime.datetime.now()
+    pause = 0
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
@@ -163,10 +164,12 @@ while True:
         log('Login successful.')
 
         # A random cycle number n
-        cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
+        sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
+        current_cycle_number = 0
+        is_hot = True
 
         # Scan n times on the same login session.
-        for i in range(cycle_number):
+        while current_cycle_number < sufficient_cycle_number and is_hot:
             # Reset the reply count.
             sum_new_reply_count = 0
 
@@ -205,10 +208,15 @@ while True:
             # Sleep to show random behavior.
             time.sleep(fluctuated_pause)
 
-            # Peacefully reached the maximum cycle?
-            if i == cycle_number - 1:
-                session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
-                log('%dth cycle finished in %d minutes. Close the browser session.' % (i, int(session_elapsed_minutes)))
+            # Cycling
+            current_cycle_number += 1
+            # TODO: Determine how hot is hot.
+            is_hot = True if pause < 60 else False
+            print('Is hot?:%s (cycle: %d)' % (str(is_hot), current_cycle_number))
+        # Sufficient cycles have been conducted. Finish the session.
+        session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
+        log('%dth cycle finished in %d minutes. Close the browser session.' %
+            (current_cycle_number, int(session_elapsed_minutes)))
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list: %s ' % main_loop_exception)
         try:
@@ -228,4 +236,5 @@ while True:
     # Close connection to the db
     thread_db.close_connection()
     log('MySQL connection closed.')
-    time.sleep(1 * random.uniform(1, 3))
+    # Pause again.
+    time.sleep(fluctuate(pause))
