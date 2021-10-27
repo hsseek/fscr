@@ -44,6 +44,7 @@ MIN_SCANNING_COUNT_ON_SESSION = 100
 MAX_SCANNING_COUNT_ON_SESSION = 1000
 PAUSE_IDLE = 600.0
 PAUSE_POWER = 3.5
+
 # For decreasing number of new replies
 sum_new_reply_count_last_time = 0
 last_pause = 0
@@ -118,37 +119,42 @@ def get_proper_pause(new_reply_count: int):
 def scan_threads(soup) -> int:
     global thread_id
     global thread_db
+
     for thread in soup.select('a.thread-list-item'):
         # Get how many threads have been uploaded since the last check.
         thread_id = int(str(thread['href']).split('/')[-1])
-        row_count = thread.select_one('span.count').string
-        if row_count == '완결':
-            thread_db.delete_thread(thread_id)
-            log('%s reached the limit.' % (ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
-            count = int(300)
-        else:
-            count = int(row_count)  # A natural number (타래 세울 때 1)
+        # Don't bother if the thread has been finished.
+        if thread_id not in finished_thread_ids:
+            row_count = thread.select_one('span.count').string
+            if row_count == '완결':
+                log('%s reached the limit.' % (ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
+                count = int(300)
+                # Add to finished list.
+                finished_thread_ids.append(thread_id)
+            else:
+                count = int(row_count)  # A natural number (타래 세울 때 1)
 
-        # Check if the count has been increased.
-        # If so, scan to check if there are links.
-        reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
-        if reply_count_to_scan > 0:
-            scan_replies(thread_id, reply_count_to_scan)
-            return reply_count_to_scan
+            # Check if the count has been increased.
+            # If so, scan to check if there are links.
+            reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
+            if reply_count_to_scan > 0:
+                scan_replies(thread_id, reply_count_to_scan)
+                return reply_count_to_scan
     return 0
 
 
 # The main loop
 while True:
-    # Start the session timer
-    session_start_time = datetime.datetime.now()
-    pause = 0
+    session_start_time = datetime.datetime.now()  # The session timer
+    session_pause = 0  # Pause for the following session
+    finished_thread_ids = []  # Threads to be removed from the db
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
     log('MySQL connection opened.')
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
+    # Login and scan the thread list -> replies on each thread.
     try:
         # Open the browser
         browser.get(ROOT_DOMAIN + LOGIN_PATH)
@@ -169,7 +175,7 @@ while True:
         is_hot = True
 
         # Scan n times on the same login session.
-        while current_cycle_number < sufficient_cycle_number and is_hot:
+        while current_cycle_number < 5 and is_hot:
             # Reset the reply count.
             sum_new_reply_count = 0
 
@@ -191,6 +197,7 @@ while True:
 
             proposed_pause = last_pause * random.uniform(1.5, 3.2)
             pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
+            session_pause = pause
             fluctuated_pause = fluctuate(pause)
 
             log('%.1f(%.1f)\t' % (elapsed_for_scanning + last_pause, elapsed_for_scanning)
@@ -212,8 +219,7 @@ while True:
             current_cycle_number += 1
             # TODO: Determine how hot is hot.
             is_hot = True if pause < 60 else False
-            print('Is hot?:%s (cycle: %d)' % (str(is_hot), current_cycle_number))
-        # Sufficient cycles have been conducted. Finish the session.
+        # Sufficient cycles have been conducted and pause is large: Finish the session.
         session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
         log('%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
@@ -233,8 +239,12 @@ while True:
         except Exception as e:
             log('Error: Failed to thread list page source: %s' % e)
 
-    # Close connection to the db
+    # Delete the finished threads from the db.
+    for finished in finished_thread_ids:
+        thread_db.delete_thread(finished)
+
+    # Close connection to the db.
     thread_db.close_connection()
     log('MySQL connection closed.')
     # Pause again.
-    time.sleep(fluctuate(pause))
+    time.sleep(fluctuate(session_pause))
