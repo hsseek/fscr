@@ -50,32 +50,33 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
         source = requests.get(page_url).text
         soup = BeautifulSoup(source, 'html.parser')
         target_tag = soup.select_one('link')
+        # id's
+        str_index = page_url.split('/')[-1][1:]  # k7Rt
+        int_index = __format_url_index(__get_url_index(page_url))
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log(page_url + ' on ' + source_id + ': 이미지가 삭제된 주소입니다.')
+                log('Error: downloading %s(%s) on %s (이미지가 삭제된 주소입니다.)' % (str_index, int_index, source_id))
             else:
-                log('Unknown error with:\n\n' + soup.prettify())
+                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
         else:  # <link> tag present
             target_url = target_tag['href']  # url of the file to download
             target_extension = target_url.split('.')[-1]
             if target_extension == 'dn':
                 log('삭제된 이미지입니다(A gentle error: image.dn)')  # Likely to be a file in a wrong format
             else:
-                str_index = page_url.split('/')[-1][1:]  # k7Rt
-                int_index = __format_url_index(__get_url_index(page_url))
                 local_name = int_index + '-' + str_index + '-' + source_id + '.' + target_extension
                 return [target_url, local_name]
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpfiles.org':
-        log('Unusual upload on %s: tmpfiles.org' % source_id)
+        log('Error: Unusual upload on %s: tmpfiles.org' % source_id)
     elif domain == 'tmpstorage.com':
-        log('Unusual upload on %s: tmpstorage.org' % source_id)
+        log('Error: Unusual upload on %s: tmpstorage.org' % source_id)
     elif domain == 'https://sendvid.com/':
-        log('Unusual upload on %s: sendvid.org' % source_id)
+        log('Error: Unusual upload on %s: sendvid.org' % source_id)
     else:
-        log('Unknown source on %s: %s' % (source_id, page_url))
+        log('Error: Unknown source on %s: %s' % (source_id, page_url))
 
 
 def __get_url_index(url: str) -> []:
