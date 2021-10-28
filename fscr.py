@@ -94,7 +94,7 @@ def scan_replies(thread_no: int, scan_count: int):
                     separator = '--------------------'
                     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
                     report = '%s\n<%s> #%d\n' % (separator, thread_title, reply_no)  # Report head
-                    report += compose_reply_report(reply) + separator  # Concatenate the report content.
+                    report += compose_reply_report(reply) + '\n' + separator  # Concatenate the report content.
                     log(report)
                     for link in links_in_reply:
                         source_url = link['href']
@@ -134,7 +134,7 @@ def compose_reply_report(reply):
             else:
                 message += 'Error: Unknown tag: %s\n' % content
         else:  # A simple text element
-            message += str(content).strip() + '\n'
+            message += str(content).strip()
     return message
 
 
@@ -159,7 +159,8 @@ def scan_threads(soup) -> int:
         if thread_id not in finished_thread_ids:
             row_count = thread.select_one('span.count').string
             if row_count == '완결':
-                log('%s reached the limit.' % (ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
+                thread_title = thread.select_one('span.title').string
+                log('<%s> reached the limit: %s' % (thread_title, ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
                 count = int(300)
                 # Add to finished list.
                 finished_thread_ids.append(thread_id)
@@ -226,6 +227,7 @@ while True:
             # thread-list 든 reply-list 든 로딩 시간 거의 동일하며 이 로딩이 RDS (~ 0.7s/page)
             elapsed_for_scanning = __get_elapsed_time(scan_start_time)
 
+            # Impose a proper pause.
             proposed_pause = last_pause * random.uniform(1.5, 3.2)
             pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
             session_pause = pause
