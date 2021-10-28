@@ -56,7 +56,7 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: downloading %s(%s) on %s (이미지가 삭제된 주소입니다.)' % (str_index, int_index, source_id))
+                log('Error: Cannot download %s(%s) on %s (이미지가 삭제된 주소입니다.)' % (str_index, int_index, source_id))
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
         else:  # <link> tag present

@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
+import bs4
 from bs4 import BeautifulSoup
 import collections
 import random
@@ -85,17 +86,32 @@ def scan_replies(target_id: int, scan_count: int):
 
             # Now scan the new replies.
             for reply in new_replies:
-                for link in reply.select('a.link'):
-                    page_link_url = link['href']
-                    downloader.download(page_link_url, str(target_id))
+                links = reply.select('a.link')
+                if links:  # links present
+                    message = ''  # TODO: Add thread title to the message
+                    for content in reply.contents:
+                        if isinstance(content, bs4.element.Tag):  # The content has a substructure.
+                            if content.has_attr('href'):
+                                message += content['href'].strip().replace('\n', '')
+                            elif 'class' in content.attrs and content.attrs['class'][0] == 'anchor':
+                                message += str(content.contents[-1]).strip()
+                            elif content == '<br/>' or '<br>':
+                                message += '\n'
+                            else:
+                                message += 'Error: Unknown tag: %s' % content
+                        else:
+                            message += str(content).strip().replace('\n', '')
+                    log(message)
+                    for link in links:
+                        page_link_url = link['href']
+                        downloader.download(page_link_url, str(target_id))
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
             log('Warning: Reply scanning failed on %i(%s)' % (target_id, exception_last_line))
             try:
                 replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
                 try:
-                    replies_err_soup.find('span', {'class': 'info-txt reply-count'})
-                    if int(str(element.contents[0]).strip()) != 1:
+                    if str(replies_err_soup.find('span', {'class': 'info-txt reply-count'}).contents[0]).strip() != '1':
                         # if 1: No replies present (likely te be "start thread" exception)
                         log('Error: html structure\n' + replies_err_soup.prettify())
                 except Exception as reply_count_exception:
@@ -180,7 +196,7 @@ while True:
         is_hot = True
 
         # Scan n times on the same login session.
-        while current_cycle_number < sufficient_cycle_number and is_hot:
+        while current_cycle_number < sufficient_cycle_number or is_hot:
             # Reset the reply count.
             sum_new_reply_count = 0
 
@@ -222,8 +238,7 @@ while True:
 
             # Cycling
             current_cycle_number += 1
-            # TODO: Determine how hot is hot.
-            is_hot = True if pause < 60 else False
+            is_hot = True if pause < 90 else False
         # Sufficient cycles have been conducted and pause is large: Finish the session.
         session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
         log('%dth cycle finished in %d minutes. Close the browser session.' %
