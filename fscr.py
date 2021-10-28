@@ -171,7 +171,6 @@ def scan_threads(soup) -> int:
             reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
             if reply_count_to_scan > 0:
                 scan_replies(thread_id, reply_count_to_scan)
-                log('%d new on %d' % (reply_count_to_scan, thread_id))
                 sum_reply_count_to_scan += reply_count_to_scan
     return sum_reply_count_to_scan
 
@@ -238,7 +237,7 @@ while True:
                 # New reply count on refresh the thread list page+
                 + '(%.1f)\t->\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
                 + '%1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
-                + str(datetime.datetime.now()).split('.')[0] + '\n')  # Timestamp
+                + str(datetime.datetime.now()).split('.')[0])  # Timestamp
 
             # Store for the next use.
             last_pause = fluctuated_pause
