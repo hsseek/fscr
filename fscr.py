@@ -237,7 +237,7 @@ while True:
             log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)
                 # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
-                + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / pause)  # Should be constant
+                + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
                 + '-> %1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
                 + str(datetime.datetime.now()).split('.')[0])  # Timestamp
 
