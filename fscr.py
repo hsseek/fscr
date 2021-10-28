@@ -66,48 +66,42 @@ def __get_elapsed_time(start_time) -> float:
     return (datetime.datetime.now() - start_time).total_seconds()
 
 
-def scan_replies(target_id: int, scan_count: int):
+def scan_replies(thread_no: int, scan_count: int):
     try:
         # Open the page to scan
-        browser.get(ROOT_DOMAIN + CAUTION_PATH + "/" + str(target_id))
+        browser.get(ROOT_DOMAIN + CAUTION_PATH + "/" + str(thread_no))
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
         try:
             wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply',)))
 
             # Get the thread list and the scanning targets(the new replies)
             replies_soup = BeautifulSoup(browser.page_source, 'html.parser')
-            replies = replies_soup.select('div.thread-reply > div.th-contents')
+            replies = replies_soup.select('div.thread-reply')
 
             # the new_replies is not a bs4.results but a collection.deque
-            # It is iterable, but does not have select method.
+            # It is iterable, but does not have Tag.select method.
             # But its elements are Tags so they have select method.
             # 마지막 n개 자르기 위해 iter 함수 쓰지 않았다면 select 2 번으로 한 줄로 끝냈을 것.
             new_replies = __tail(replies, scan_count)
 
             # Now scan the new replies.
             for reply in new_replies:
-                links = reply.select('a.link')
-                if links:  # links present
-                    message = ''  # TODO: Add thread title to the message
-                    for content in reply.contents:
-                        if isinstance(content, bs4.element.Tag):  # The content has a substructure.
-                            if content.has_attr('href'):
-                                message += content['href'].strip().replace('\n', '')
-                            elif 'class' in content.attrs and content.attrs['class'][0] == 'anchor':
-                                message += str(content.contents[-1]).strip()
-                            elif content == '<br/>' or '<br>':
-                                message += '\n'
-                            else:
-                                message += 'Error: Unknown tag: %s' % content
-                        else:
-                            message += str(content).strip().replace('\n', '')
-                    log(message)
-                    for link in links:
-                        page_link_url = link['href']
-                        downloader.download(page_link_url, str(target_id))
+                links_in_reply = reply.select('div.th-contents > a.link')
+                if links_in_reply:  # Link(s) present in the reply
+                    # Retrieve the reply information.
+                    reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
+                    reply_no = int(reply_no_str.strip().replace('#', ''))
+                    separator = '--------------------'
+                    thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
+                    report = '%s\n<%s> #%d\n' % (separator, thread_title, reply_no)  # Report head
+                    report += compose_reply_report(reply) + separator  # Concatenate the report content.
+                    log(report)
+                    for link in links_in_reply:
+                        source_url = link['href']
+                        downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            log('Warning: Reply scanning failed on %i(%s)' % (target_id, exception_last_line))
+            log('Warning: Reply scanning failed on %i(%s)' % (thread_no, exception_last_line))
             try:
                 replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
                 try:
@@ -117,14 +111,31 @@ def scan_replies(target_id: int, scan_count: int):
                 except Exception as reply_count_exception:
                     log('Error: reply count not available(%s).' % reply_count_exception)
             except Exception as scan_exception:
-                log('Error: Failed to load page source %s(%s)' % (target_id, str(scan_exception)))
+                log('Error: Failed to load page source %s(%s)' % (thread_no, str(scan_exception)))
     except Exception as scan_exception:
-        log('Error: Cannot scan %i(%s)' % (target_id, str(scan_exception)))
+        log('Error: Cannot scan %i(%s)' % (thread_no, str(scan_exception)))
         try:
             replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             log(replies_err_soup.prettify())
         except Exception as scan_exception:
-            log('Error: Failed to load page source %s: %s' % (target_id, str(scan_exception)))
+            log('Error: Failed to load page source %s: %s' % (thread_no, str(scan_exception)))
+
+
+def compose_reply_report(reply):
+    message = ""
+    for content in reply.select_one('div.th-contents').contents:
+        if isinstance(content, bs4.element.Tag):  # The content has a substructure.
+            if content.has_attr('href'):
+                message += content['href'].strip() + " "
+            elif 'class' in content.attrs and content.attrs['class'][0] == 'anchor':
+                message += content.contents[-1].strip() + " "
+            elif content == '<br/>' or '<br>':
+                message += '\n'
+            else:
+                message += 'Error: Unknown tag: %s\n' % content
+        else:  # A simple text element
+            message += str(content).strip() + '\n'
+    return message
 
 
 def fluctuate(value):
@@ -140,7 +151,7 @@ def get_proper_pause(new_reply_count: int):
 def scan_threads(soup) -> int:
     global thread_id
     global thread_db
-
+    sum_reply_count_to_scan = 0
     for thread in soup.select('a.thread-list-item'):
         # Get how many threads have been uploaded since the last check.
         thread_id = int(str(thread['href']).split('/')[-1])
@@ -160,8 +171,9 @@ def scan_threads(soup) -> int:
             reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
             if reply_count_to_scan > 0:
                 scan_replies(thread_id, reply_count_to_scan)
-                return reply_count_to_scan
-    return 0
+                log('%d new on %d' % (reply_count_to_scan, thread_id))
+                sum_reply_count_to_scan += reply_count_to_scan
+    return sum_reply_count_to_scan
 
 
 # The main loop
@@ -184,7 +196,6 @@ while True:
         browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[1]').send_keys(EMAIL)
         browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[2]').send_keys(PW)
         browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[3]').click()
-        # browser.get('file:///home/sun/Downloads/threads.html')
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
@@ -225,9 +236,9 @@ while True:
                 # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 # New reply count on refresh the thread list page+
-                + '(%.1f) ->\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
+                + '(%.1f)\t->\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
                 + '%1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
-                + str(datetime.datetime.now()).split('.')[0])  # Timestamp
+                + str(datetime.datetime.now()).split('.')[0] + '\n')  # Timestamp
 
             # Store for the next use.
             last_pause = fluctuated_pause
@@ -263,8 +274,8 @@ while True:
     for finished in finished_thread_ids:
         thread_db.delete_thread(finished)
 
-    # Close connection to the db.
-    thread_db.close_connection()
+    browser.quit()  # Close the browser.
+    thread_db.close_connection()  # Close connection to the db.
     log('MySQL connection closed.')
     # Pause again.
     time.sleep(fluctuate(session_pause))

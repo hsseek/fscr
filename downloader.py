@@ -18,7 +18,7 @@ def log(message: str):
     print(message)
 
 
-def download(page_url: str, source_id: str):
+def download(source_url: str, thread_no: int, reply_no: int):
     # Set the absolute path to store the downloaded file.
     with open('download_destination_path.pv') as f:
         download_destination_path = f.read().strip('\n')
@@ -26,7 +26,7 @@ def download(page_url: str, source_id: str):
         os.makedirs(download_destination_path)  # create folder if it does not exist
 
     # Set the download target.
-    target = __extract_download_target(page_url, source_id)
+    target = __extract_download_target(source_url, thread_no, reply_no)
     if target is not None:  # If None, a respective error message has been issued in __extract method.
         file_url = target[0]  # The url on the server
         file_name = target[1]  # A file name to store in local
@@ -44,19 +44,18 @@ def download(page_url: str, source_id: str):
             log("Download failed: status code {}\n{}".format(r.status_code, r.text))
 
 
-def __extract_download_target(page_url: str, source_id: str) -> []:
+def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> []:
     domain = urlparse(page_url).netloc.replace('www', '')
     if domain == 'imgdb.in':
         source = requests.get(page_url).text
         soup = BeautifulSoup(source, 'html.parser')
         target_tag = soup.select_one('link')
         # id's
-        str_index = page_url.split('/')[-1][1:]  # k7Rt
         int_index = __format_url_index(__get_url_index(page_url))
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: Cannot download %s(%s) on %s (이미지가 삭제된 주소입니다.)' % (str_index, int_index, source_id))
+                log('Error: Cannot download link on %s #%s(이미지가 삭제된 주소입니다.)' % (source_id, reply_no))
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
         else:  # <link> tag present
@@ -65,7 +64,7 @@ def __extract_download_target(page_url: str, source_id: str) -> []:
             if target_extension == 'dn':
                 log('삭제된 이미지입니다(A gentle error: image.dn)')  # Likely to be a file in a wrong format
             else:
-                local_name = int_index + '-' + str_index + '-' + source_id + '.' + target_extension
+                local_name = '%s-%03d-%s.%s' % (int_index, reply_no, source_id, target_extension)
                 return [target_url, local_name]
 
     # Unusual sources: Consider parsing if used often.
