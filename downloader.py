@@ -55,7 +55,8 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: Cannot download link on %s #%s(이미지가 삭제된 주소입니다.)' % (source_id, reply_no))
+                log('Error: Cannot download %s quoted in %s #%s(이미지가 삭제된 주소입니다.)'
+                    % (int_index, source_id, reply_no))
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
         else:  # <link> tag present
@@ -96,7 +97,7 @@ def __format_url_index(url_index: []) -> str:
     formatted_index = ''
     for index in url_index:
         formatted_index += '%02d' % index
-    return formatted_index
+    return formatted_index  # '19092307'
 
 
 def __split_on_last_pattern(string: str, pattern: str) -> []:
