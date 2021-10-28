@@ -233,12 +233,12 @@ while True:
             session_pause = pause
             fluctuated_pause = fluctuate(pause)
 
-            log('%.1f(%.1f)\t' % (elapsed_for_scanning + last_pause, elapsed_for_scanning)
+            current_session_span = elapsed_for_scanning + last_pause
+            log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)
                 # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
-                # New reply count on refresh the thread list page+
-                + '(%.1f)\t->\t' % (10 * sum_new_reply_count / (elapsed_for_scanning + last_pause))
-                + '%1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / pause)  # Should be constant
+                + '-> %1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
                 + str(datetime.datetime.now()).split('.')[0])  # Timestamp
 
             # Store for the next use.
