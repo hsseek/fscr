@@ -206,7 +206,7 @@ while True:
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        log('Login successful.\t%s' % str(datetime.datetime.now()).split('.')[0])
+        log('Login successful.\t\t%s' % str(datetime.datetime.now()).split('.')[0])
 
         # A random cycle number n
         sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -244,7 +244,7 @@ while True:
             log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
-                + '-> %1.f(%1.f)' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + '-> %1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
                 + '%s' % str(datetime.datetime.now()).split('.')[0])
 
             # Store for the next use.
