@@ -1,4 +1,6 @@
 import time
+import traceback
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -179,6 +181,10 @@ def scan_threads(soup) -> int:
     return sum_reply_count_to_scan
 
 
+def __get_formatted_time():
+    return str(datetime.datetime.now()).split('.')[0]
+
+
 # The main loop
 while True:
     session_start_time = datetime.datetime.now()  # The session timer
@@ -187,7 +193,7 @@ while True:
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
-    log('MySQL connection opened.\t%s' % str(datetime.datetime.now()).split('.')[0])
+    log('MySQL connection opened.\t%s' % __get_formatted_time())
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
     # Initiate the browser
@@ -206,7 +212,7 @@ while True:
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        log('Login successful.\t\t%s' % str(datetime.datetime.now()).split('.')[0])
+        log('Login successful.\t\t%s' % __get_formatted_time())
 
         # A random cycle number n
         sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -244,8 +250,8 @@ while True:
             log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
-                + '-> %1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
-                + '%s' % str(datetime.datetime.now()).split('.')[0])
+                + '-> %1.f(%1.f) \t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + '%s' % __get_formatted_time())
 
             # Store for the next use.
             last_pause = fluctuated_pause
@@ -261,8 +267,11 @@ while True:
         session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
         log('%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
+    except TimeoutError:
+        log('Error: Timeout.\t%s' % __get_formatted_time())
     except Exception as main_loop_exception:
-        log('Error: Cannot retrieve thread list(%s).' % main_loop_exception)
+        log('Error: Cannot retrieve thread list(%s).\t%s\n%s' %
+            (main_loop_exception, __get_formatted_time(), traceback.format_exc()))
         try:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             side_pane_elements = err_soup.select('div.user-info > a.btn')
@@ -283,6 +292,6 @@ while True:
 
     browser.quit()  # Close the browser.
     thread_db.close_connection()  # Close connection to the db.
-    log('MySQL connection closed.\t%s' % str(datetime.datetime.now()).split('.')[0])
+    log('MySQL connection closed.\t%s' % __get_formatted_time())
     # Pause again.
     time.sleep(fluctuate(session_pause))
