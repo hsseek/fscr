@@ -39,10 +39,11 @@ def initiate_browser():
 
 
 def __format_file_name(file_name: str) -> str:
-    return file_name.strip().replace(' ', '-').replace('.', '-')
+    chunks = __split_on_last_pattern(file_name, '.')
+    return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
 
 
-def download_wait() -> str:
+def wait_downloading() -> str:
     seconds = 0
     check_interval = 0.5
     is_downloading = False
@@ -61,6 +62,7 @@ def download_wait() -> str:
     # Wait up to 20 seconds to finish download.
     while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 20:
         time.sleep(check_interval)
+    time.sleep(check_interval)
     return temp_file_name.replace(temp_extension, '')
 
 
@@ -117,7 +119,7 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             browser = initiate_browser()
             browser.get(page_url)
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
-            file_name = download_wait()
+            file_name = wait_downloading()
             browser.quit()
             local_name = '%s-%03d-%s-%s' % (domain.strip('.com'), reply_no, source_id, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
