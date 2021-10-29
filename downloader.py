@@ -1,12 +1,12 @@
 import os
 import traceback
-
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-import fscr
 
 
 def read_from_file(path: str):
@@ -15,6 +15,8 @@ def read_from_file(path: str):
 
 
 LOG_PATH = read_from_file('LOG_PATH.pv')
+DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
+DESTINATION_PATH = read_from_file('download_destination_path.pv')
 
 
 def log(message: str):
@@ -23,12 +25,21 @@ def log(message: str):
     print(message)
 
 
+def initiate_browser():
+    # A chrome web driver with headless option
+    service = Service(DRIVER_PATH)
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("prefs", {"download.default_directory": DESTINATION_PATH})
+    options.add_argument('headless')
+    options.add_argument('disable-gpu')
+    # options.add_experimental_option("detach", True)
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+
 def download(source_url: str, thread_no: int, reply_no: int):
-    # Set the absolute path to store the downloaded file.
-    with open('download_destination_path.pv') as f:
-        download_destination_path = f.read().strip('\n')
-    if not os.path.exists(download_destination_path):
-        os.makedirs(download_destination_path)  # create folder if it does not exist
+    if not os.path.exists(DESTINATION_PATH):
+        os.makedirs(DESTINATION_PATH)  # create folder if it does not exist
 
     # Set the download target.
     target = __extract_download_target(source_url, thread_no, reply_no)
@@ -36,7 +47,7 @@ def download(source_url: str, thread_no: int, reply_no: int):
         file_url = target[0]  # The url on the server
         file_name = target[1]  # A file name to store in local
         r = requests.get(file_url, stream=True)
-        file_path = os.path.join(download_destination_path, file_name)
+        file_path = os.path.join(DESTINATION_PATH, file_name)
         if r.ok:
             with open(file_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024 * 8):
@@ -76,7 +87,7 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':
         try:
-            browser = fscr.initiate_browser()
+            browser = initiate_browser()
             browser.get(page_url)
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
         except Exception as tmpstorage_exception:

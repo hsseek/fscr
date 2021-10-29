@@ -23,10 +23,8 @@ def read_from_file(path: str):
 
 def initiate_browser():
     # A chrome web driver with headless option
-    download_path = read_from_file('download_destination_path.pv')
     service = Service(DRIVER_PATH)
     options = webdriver.ChromeOptions()
-    options.add_experimental_option("prefs", {"download.default_directory": download_path})
     options.add_argument('headless')
     options.add_argument('disable-gpu')
     # options.add_experimental_option("detach", True)
