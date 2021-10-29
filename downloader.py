@@ -72,16 +72,20 @@ def wait_downloading() -> str:
         __get_downloading('3')
     # Wait up to 20 seconds to finish download.
     last_file_size = 0
-    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 30:
+    # TODO: Use async thread.
+    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 35:
         __get_downloading('4')
         current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
         if current_file_size == last_file_size:
+            # Download stopped or finished, while the file name hasn't been properly changed.
             break
         time.sleep(check_interval)
         seconds += check_interval
     # Rename temporary files: Download not finished, duplicated, ...
     for file in os.listdir(DESTINATION_PATH):
         __get_downloading('5')
+        if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
+            os.remove(DESTINATION_PATH + file)
         if file.endswith(temp_extension):
             os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
             __get_downloading('6')
