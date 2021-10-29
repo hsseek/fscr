@@ -7,6 +7,7 @@ import requests
 from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+import time
 
 
 def read_from_file(path: str):
@@ -37,6 +38,28 @@ def initiate_browser():
     return driver
 
 
+def download_wait() -> str:
+    seconds = 0
+    check_interval = 0.5
+    is_downloading = False
+    temp_extension = '.crdownload'
+    temp_file_name = ''
+
+    while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
+        time.sleep(check_interval)
+        for file_name in os.listdir(DESTINATION_PATH):
+            if file_name.endswith(temp_extension):
+                # A temporary chrome downloading file detected.
+                is_downloading = True
+                temp_file_name = file_name
+                break
+        seconds += check_interval
+    # Wait up to 20 seconds to finish download.
+    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 20:
+        time.sleep(check_interval)
+    return temp_file_name.replace(temp_extension, '')
+
+
 def download(source_url: str, thread_no: int, reply_no: int):
     if not os.path.exists(DESTINATION_PATH):
         os.makedirs(DESTINATION_PATH)  # create folder if it does not exist
@@ -55,7 +78,7 @@ def download(source_url: str, thread_no: int, reply_no: int):
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
-            log("Stored to " + str(os.path.abspath(file_path)))
+            log("Stored as %s" % file_name)
         else:  # HTTP status code 4??/5??
             log("Download failed: status code {}\n{}".format(r.status_code, r.text))
 
@@ -85,11 +108,14 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
                 return [target_url, local_name]
 
     # Unusual sources: Consider parsing if used often.
-    elif domain == 'tmpstorage.com':
+    elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
         try:
             browser = initiate_browser()
             browser.get(page_url)
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
+            file_name = download_wait()
+            browser.quit()
+            log("Stored as %s (tmpstorage.com)" % file_name)
         except Exception as tmpstorage_exception:
             log('Error: Cannot retrieve thread list(%s).\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))

@@ -98,7 +98,7 @@ def scan_replies(thread_no: int, scan_count: int):
                     reply_no = int(reply_no_str.strip().replace('#', ''))
                     separator = '--------------------'
                     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-                    report = '%s\n<%s> #%d\n' % (separator, thread_title, reply_no)  # Report head
+                    report = '%s\n<%s> %s #%d\n' % (separator, thread_title, thread_no, reply_no)  # Report head
                     report += compose_reply_report(reply) + '\n' + separator  # Concatenate the report content.
                     log(report)
                     for link in links_in_reply:
