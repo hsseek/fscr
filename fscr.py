@@ -270,7 +270,7 @@ while True:
     except TimeoutError:
         log('Error: Timeout.\t%s' % __get_formatted_time())
     except Exception as main_loop_exception:
-        log('Error: Cannot retrieve thread list(%s).\t%s\n%s' %
+        log('Error: Cannot retrieve thread list(%s).\t%s\n[Traceback]\n%s' %
             (main_loop_exception, __get_formatted_time(), traceback.format_exc()))
         try:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')

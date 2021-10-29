@@ -38,6 +38,10 @@ def initiate_browser():
     return driver
 
 
+def __format_file_name(file_name: str) -> str:
+    return file_name.strip().replace(' ', '-').replace('.', '-')
+
+
 def download_wait() -> str:
     seconds = 0
     check_interval = 0.5
@@ -115,9 +119,12 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
             file_name = download_wait()
             browser.quit()
-            log("Stored as %s (tmpstorage.com)" % file_name)
+            local_name = '%s-%03d-%s-%s' % (domain.strip('.com'), reply_no, source_id, __format_file_name(file_name))
+            os.rename(DESTINATION_PATH + file_name,
+                      DESTINATION_PATH + local_name)
+            log("Stored as %s." % local_name)
         except Exception as tmpstorage_exception:
-            log('Error: Cannot retrieve thread list(%s).\n%s' %
+            log('Error: Cannot retrieve tempstroage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))
     elif domain == 'tmpfiles.org':
         log('Error: Unusual upload on %s: tmpfiles.org' % source_id)
