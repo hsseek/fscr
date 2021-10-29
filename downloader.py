@@ -1,7 +1,12 @@
 import os
+import traceback
+
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import fscr
 
 
 def read_from_file(path: str):
@@ -69,10 +74,16 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
                 return [target_url, local_name]
 
     # Unusual sources: Consider parsing if used often.
+    elif domain == 'tmpstorage.com':
+        try:
+            browser = fscr.initiate_browser()
+            browser.get(page_url)
+            browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
+        except Exception as tmpstorage_exception:
+            log('Error: Cannot retrieve thread list(%s).\n%s' %
+                (tmpstorage_exception, traceback.format_exc()))
     elif domain == 'tmpfiles.org':
         log('Error: Unusual upload on %s: tmpfiles.org' % source_id)
-    elif domain == 'tmpstorage.com':
-        log('Error: Unusual upload on %s: tmpstorage.org' % source_id)
     elif domain == 'https://sendvid.com/':
         log('Error: Unusual upload on %s: sendvid.org' % source_id)
     else:
