@@ -72,12 +72,12 @@ def wait_downloading() -> str:
         __get_downloading('3')
     # Wait up to 20 seconds to finish download.
     last_file_size = 0
-    while seconds < 30:
+    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 30:
         __get_downloading('4')
-        time.sleep(check_interval)
         current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
         if current_file_size == last_file_size:
             break
+        time.sleep(check_interval)
         seconds += check_interval
     # Rename temporary files: Download not finished, duplicated, ...
     for file in os.listdir(DESTINATION_PATH):
