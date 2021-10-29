@@ -61,8 +61,10 @@ def wait_downloading() -> str:
         seconds += check_interval
     # Wait up to 20 seconds to finish download.
     while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 20:
+        for file_name in os.listdir(DESTINATION_PATH):  # TEST
+            if file_name.endswith(temp_extension):
+                print('%.1fs: %s' % (seconds, file_name))
         time.sleep(check_interval)
-    time.sleep(check_interval)
     return temp_file_name.replace(temp_extension, '')
 
 
