@@ -44,11 +44,11 @@ def __format_file_name(file_name: str) -> str:
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
 
 
-def __get_downloading():
+def __get_downloading(message: str):
     temp_extension = '.crdownload'
     for file_name in os.listdir(DESTINATION_PATH):  # TEST
         if file_name.endswith(temp_extension):
-            log('%s: %s' % (str(datetime.datetime.now()).split('.')[0], file_name))
+            log('(%s) %s: %s' % (message, str(datetime.datetime.now()).split('.')[0], file_name))
 
 
 def wait_downloading() -> str:
@@ -59,9 +59,9 @@ def wait_downloading() -> str:
     temp_file_name = ''
 
     while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
-        __get_downloading()
+        __get_downloading('1')
         time.sleep(check_interval)
-        __get_downloading()
+        __get_downloading('2')
         for file_name in os.listdir(DESTINATION_PATH):
             if file_name.endswith(temp_extension):
                 # A temporary chrome downloading file detected.
@@ -69,12 +69,19 @@ def wait_downloading() -> str:
                 temp_file_name = file_name
                 break
         seconds += check_interval
-        __get_downloading()
+        __get_downloading('3')
     # Wait up to 20 seconds to finish download.
-    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 20:
-        __get_downloading()
+    while not is_downloading and seconds < 20:  # Loop up to 5 seconds to locate downloading file.
+        __get_downloading('3')
         time.sleep(check_interval)
+        __get_downloading('4')
+        for file_name in os.listdir(DESTINATION_PATH):
+            if file_name.endswith(temp_extension):
+                # A temporary chrome downloading file detected.
+                is_downloading = True
+                break
         seconds += check_interval
+
     return temp_file_name.replace(temp_extension, '')
 
 
