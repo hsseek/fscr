@@ -19,6 +19,17 @@ def read_from_file(path: str):
         return f.read().strip('\n')
 
 
+def initiate_browser():
+    # A chrome web driver with headless option
+    service = Service(DRIVER_PATH)
+    options = webdriver.ChromeOptions()
+    options.add_argument('headless')
+    options.add_argument('disable-gpu')
+    # options.add_experimental_option("detach", True)
+    browser = webdriver.Chrome(service=service, options=options)
+    return browser
+
+
 # urls
 DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
 ROOT_DOMAIN = read_from_file('ROOT_DOMAIN.pv')
@@ -30,14 +41,6 @@ HTML_TIMEOUT = 5
 # Credentials
 EMAIL = read_from_file('EMAIL.pv')
 PW = read_from_file('PW.pv')
-
-# A chrome web driver with headless option
-service = Service(DRIVER_PATH)
-options = webdriver.ChromeOptions()
-options.add_argument('headless')
-options.add_argument('disable-gpu')
-# options.add_experimental_option("detach", True)
-browser = webdriver.Chrome(service=service, options=options)
 
 # Variables regarding randomizing the behavior
 # For the same or increasing number of new replies
@@ -184,9 +187,13 @@ while True:
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
-    log('MySQL connection opened.')
+    log('MySQL connection opened.\t%s' % str(datetime.datetime.now()).split('.')[0])
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
+    # Initiate the browser
+    browser = initiate_browser()
+
+    # Online process starts.
     # Login and scan the thread list -> replies on each thread.
     try:
         # Open the browser
@@ -199,7 +206,7 @@ while True:
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        log('Login successful.')
+        log('Login successful.\t%s' % str(datetime.datetime.now()).split('.')[0])
 
         # A random cycle number n
         sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -234,12 +241,11 @@ while True:
             fluctuated_pause = fluctuate(pause)
 
             current_session_span = elapsed_for_scanning + last_pause
-            log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)
-                # Actual pause(Time spent on scanning)
+            log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
-                + '-> %1.f(%1.f)\t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
-                + str(datetime.datetime.now()).split('.')[0])  # Timestamp
+                + '-> %1.f(%1.f)' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + '%s' % str(datetime.datetime.now()).split('.')[0])
 
             # Store for the next use.
             last_pause = fluctuated_pause
@@ -277,6 +283,6 @@ while True:
 
     browser.quit()  # Close the browser.
     thread_db.close_connection()  # Close connection to the db.
-    log('MySQL connection closed.')
+    log('MySQL connection closed.\t%s' % str(datetime.datetime.now()).split('.')[0])
     # Pause again.
     time.sleep(fluctuate(session_pause))
