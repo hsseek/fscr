@@ -71,18 +71,16 @@ def wait_downloading() -> str:
         seconds += check_interval
         __get_downloading('3')
     # Wait up to 20 seconds to finish download.
-    while is_downloading and seconds < 20:  # Loop up to 5 seconds to locate downloading file.
-        is_downloading = False
+    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 20:
         __get_downloading('4')
         time.sleep(check_interval)
-        __get_downloading('5')
-        for file_name in os.listdir(DESTINATION_PATH):
-            if file_name.endswith(temp_extension):
-                # A temporary chrome downloading file detected.
-                is_downloading = True
-                break
         seconds += check_interval
-
+    # Remove other temporary files.
+    for file in os.listdir(DESTINATION_PATH):
+        __get_downloading('5')
+        if file.endswith(temp_extension):
+            os.remove(DESTINATION_PATH + file)
+            __get_downloading('6')
     return temp_file_name.replace(temp_extension, '')
 
 
