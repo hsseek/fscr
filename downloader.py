@@ -53,7 +53,7 @@ def __get_downloading(message: str):
 
 def wait_downloading() -> str:
     seconds = 0
-    check_interval = 0.5
+    check_interval = 1
     is_downloading = False
     temp_extension = '.crdownload'
     temp_file_name = ''
@@ -71,15 +71,19 @@ def wait_downloading() -> str:
         seconds += check_interval
         __get_downloading('3')
     # Wait up to 20 seconds to finish download.
-    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 20:
+    last_file_size = 0
+    while seconds < 30:
         __get_downloading('4')
         time.sleep(check_interval)
+        current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
+        if current_file_size == last_file_size:
+            break
         seconds += check_interval
-    # Remove other temporary files.
+    # Rename temporary files: Download not finished, duplicated, ...
     for file in os.listdir(DESTINATION_PATH):
         __get_downloading('5')
         if file.endswith(temp_extension):
-            os.remove(DESTINATION_PATH + file)
+            os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
             __get_downloading('6')
     return temp_file_name.replace(temp_extension, '')
 
