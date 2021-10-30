@@ -1,5 +1,7 @@
 import os
 import traceback
+
+import selenium.common.exceptions
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
@@ -44,13 +46,6 @@ def __format_file_name(file_name: str) -> str:
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
 
 
-def __get_downloading(message: str):
-    temp_extension = '.crdownload'
-    for file_name in os.listdir(DESTINATION_PATH):  # TEST
-        if file_name.endswith(temp_extension):
-            log('(%s) %s: %s' % (message, str(datetime.datetime.now()).split('.')[0], file_name))
-
-
 def wait_downloading() -> str:
     seconds = 0
     check_interval = 1
@@ -59,36 +54,31 @@ def wait_downloading() -> str:
     temp_file_name = ''
 
     while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
-        __get_downloading('1')
         time.sleep(check_interval)
-        __get_downloading('2')
         for file_name in os.listdir(DESTINATION_PATH):
             if file_name.endswith(temp_extension):
                 # A temporary chrome downloading file detected.
                 is_downloading = True
-                temp_file_name = file_name
+                temp_file_name = file_name.replace(' (1)' + temp_extension, temp_extension)
                 break
         seconds += check_interval
-        __get_downloading('3')
     # Wait up to 20 seconds to finish download.
     last_file_size = 0
     # TODO: Use async thread.
     while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 35:
-        __get_downloading('4')
         current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
         if current_file_size == last_file_size:
-            # Download stopped or finished, while the file name hasn't been properly changed.
+            # Download finished, while the file name hasn't been properly changed.
+            # (Unless downloading speed is slower than 1 byte/sec.)
             break
         time.sleep(check_interval)
         seconds += check_interval
     # Rename temporary files: Download not finished, duplicated, ...
     for file in os.listdir(DESTINATION_PATH):
-        __get_downloading('5')
         if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
             os.remove(DESTINATION_PATH + file)
         if file.endswith(temp_extension):
             os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
-            __get_downloading('6')
     return temp_file_name.replace(temp_extension, '')
 
 
@@ -147,10 +137,14 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
             file_name = wait_downloading()
             browser.quit()
-            local_name = '%s-%03d-%s-%s' % (domain.strip('.com'), reply_no, source_id, __format_file_name(file_name))
+            local_name = '%s-%s-%03d-%s' % (domain.strip('.com'), source_id, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
                       DESTINATION_PATH + local_name)
             log("Stored as %s." % local_name)
+        except selenium.common.exceptions.NoSuchElementException:
+            log('Error: Cannot locate the download button(The file might have been deleted).')
+        except FileNotFoundError as file_exception:
+            log('Error: The file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
             log('Error: Cannot retrieve tempstroage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))

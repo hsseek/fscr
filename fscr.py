@@ -246,11 +246,14 @@ while True:
             session_pause = pause
             fluctuated_pause = fluctuate(pause)
 
+            pause_str = '-> %1.f(%1.f)' % (pause, fluctuated_pause)
+            pause_str += '\t' if pause > 100 else ' \t'  # For visual alignment
+
             current_session_span = elapsed_for_scanning + last_pause
             log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
-                + '-> %1.f(%1.f) \t' % (pause, fluctuated_pause)  # A proper pose(Fluctuated pause)
+                + pause_str  # A proper pose(Fluctuated pause)
                 + '%s' % __get_formatted_time())
 
             # Store for the next use.
@@ -277,9 +280,10 @@ while True:
             side_pane_elements = err_soup.select('div.user-info > a.btn')
             for element in side_pane_elements:
                 if element['href'] == '/login':
-                    print('logged out')
+                    cool_down = 300 * random.uniform(1, 2)
+                    print('The session requires login. Retry after %ds.' % int(cool_down))
                     # Possibly banned for abuse. Cool down.
-                    time.sleep(300 * random.uniform(1, 2))
+                    time.sleep(cool_down)
                     break
                 else:
                     log(err_soup.prettify())
