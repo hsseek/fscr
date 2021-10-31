@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 import time
-import datetime
 
 
 def read_from_file(path: str):
@@ -62,25 +61,26 @@ def wait_downloading() -> str:
                 break
         seconds += check_interval
         time.sleep(check_interval)
-    last_file_size = 0
-    # TODO: Use async thread.
-    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 30:
-        current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
-        if current_file_size == last_file_size:
-            # Download finished, while the file name hasn't been properly changed.
-            # (Unless downloading speed is slower than 1 byte/sec.)
-            break
-        last_file_size = current_file_size  # Update the file size.
-        time.sleep(check_interval)
-        seconds += check_interval
-    # Rename temporary files: Download not finished, duplicated, ...
-    for file in os.listdir(DESTINATION_PATH):
-        if file.endswith(temp_extension):
-            if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
-                os.remove(DESTINATION_PATH + file)
-            else:
-                os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
-    return temp_file_name.replace(temp_extension, '')
+    if is_downloading:
+        last_file_size = 0
+        # TODO: Use async thread.
+        while is_downloading and os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 30:
+            current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
+            if current_file_size == last_file_size:
+                # Download finished, while the file name hasn't been properly changed.
+                # (Unless downloading speed is slower than 1 byte/sec.)
+                break
+            last_file_size = current_file_size  # Update the file size.
+            time.sleep(check_interval)
+            seconds += check_interval
+        # Rename temporary files: Download not finished, duplicated, ...
+        for file in os.listdir(DESTINATION_PATH):
+            if file.endswith(temp_extension):
+                if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
+                    os.remove(DESTINATION_PATH + file)
+                else:
+                    os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
+        return temp_file_name.replace(temp_extension, '')
 
 
 def download(source_url: str, thread_no: int, reply_no: int):
@@ -132,23 +132,33 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
+        browser = initiate_browser()
         try:
-            browser = initiate_browser()
             browser.get(page_url)
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
             file_name = wait_downloading()
-            browser.quit()
-            local_name = '%s-%s-%03d-%s' % (domain.strip('.com'), source_id, reply_no, __format_file_name(file_name))
-            os.rename(DESTINATION_PATH + file_name,
-                      DESTINATION_PATH + local_name)
-            log("Stored as %s." % local_name)
+            if file_name:
+                local_name = '%s-%s-%03d-%s' % (
+                    domain.strip('.com'), source_id, reply_no, __format_file_name(file_name))
+                os.rename(DESTINATION_PATH + file_name,
+                          DESTINATION_PATH + local_name)
+                log("Stored as %s." % local_name)
+            else:
+                log("Warning: A .crdownload file not detected.(Too quickly finished?)")
         except selenium.common.exceptions.NoSuchElementException:
-            log('Error: Cannot locate the download button(The file might have been deleted).')
+            err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            if err_soup.select_one('div#expired > p.notice'):
+                log('Error: The file has been deleted.')
+            else:
+                log('Error: Cannot locate the download button(The file might have been deleted).')
         except FileNotFoundError as file_exception:
             log('Error: The file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
             log('Error: Cannot retrieve tempstroage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))
+        finally:
+            browser.quit()
+
     elif domain == 'tmpfiles.org':
         log('Error: Unusual upload on %s: tmpfiles.org' % source_id)
     elif domain == 'https://sendvid.com/':
