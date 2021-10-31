@@ -45,7 +45,7 @@ def __format_file_name(file_name: str) -> str:
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
 
 
-def wait_downloading() -> str:
+def wait_downloading():
     seconds = 0
     check_interval = 1
     is_downloading = False
@@ -80,7 +80,8 @@ def wait_downloading() -> str:
                     os.remove(DESTINATION_PATH + file)
                 else:
                     os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
-        return temp_file_name.replace(temp_extension, '')
+    else:
+        log("Warning: A .crdownload file not detected.(Too quickly finished?)")
 
 
 def download(source_url: str, thread_no: int, reply_no: int):
@@ -108,9 +109,10 @@ def download(source_url: str, thread_no: int, reply_no: int):
 
 def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> []:
     domain = urlparse(page_url).netloc.replace('www', '')
+    html_parser = 'html.parser'
     if domain == 'imgdb.in':
         source = requests.get(page_url).text
-        soup = BeautifulSoup(source, 'html.parser')
+        soup = BeautifulSoup(source, html_parser)
         target_tag = soup.select_one('link')
         # id's
         int_index = __format_url_index(__get_url_index(page_url))
@@ -125,7 +127,7 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             target_url = target_tag['href']  # url of the file to download
             target_extension = target_url.split('.')[-1]
             if target_extension == 'dn':
-                log('삭제된 이미지입니다(A gentle error: image.dn)')  # Likely to be a file in a wrong format
+                log('삭제된 이미지입니다.(A gentle error: image.dn)')  # Likely to be a file in a wrong format
             else:
                 local_name = '%s-%03d-%s.%s' % (int_index, reply_no, source_id, target_extension)
                 return [target_url, local_name]
@@ -136,17 +138,17 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
         try:
             browser.get(page_url)
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
-            file_name = wait_downloading()
-            if file_name:
-                local_name = '%s-%s-%03d-%s' % (
-                    domain.strip('.com'), source_id, reply_no, __format_file_name(file_name))
-                os.rename(DESTINATION_PATH + file_name,
-                          DESTINATION_PATH + local_name)
-                log("Stored as %s." % local_name)
-            else:
-                log("Warning: A .crdownload file not detected.(Too quickly finished?)")
+            download_soup = BeautifulSoup(browser.page_source, html_parser)
+            file_name = download_soup.select_one('div#download > h1.filename').string
+            wait_downloading()  # Wait for seconds.
+
+            local_name = '%s-%s-%03d-%s' % (
+                domain.strip('.com'), source_id, reply_no, __format_file_name(file_name))
+            os.rename(DESTINATION_PATH + file_name,
+                      DESTINATION_PATH + local_name)
+            log("Stored as %s." % local_name)
         except selenium.common.exceptions.NoSuchElementException:
-            err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Error: The file has been deleted.')
             else:
