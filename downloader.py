@@ -75,10 +75,11 @@ def wait_downloading() -> str:
         seconds += check_interval
     # Rename temporary files: Download not finished, duplicated, ...
     for file in os.listdir(DESTINATION_PATH):
-        if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
-            os.remove(DESTINATION_PATH + file)
         if file.endswith(temp_extension):
-            os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
+            if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
+                os.remove(DESTINATION_PATH + file)
+            else:
+                os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
     return temp_file_name.replace(temp_extension, '')
 
 
