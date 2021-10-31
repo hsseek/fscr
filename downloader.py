@@ -54,7 +54,6 @@ def wait_downloading() -> str:
     temp_file_name = ''
 
     while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
-        time.sleep(check_interval)
         for file_name in os.listdir(DESTINATION_PATH):
             if file_name.endswith(temp_extension):
                 # A temporary chrome downloading file detected.
@@ -62,15 +61,16 @@ def wait_downloading() -> str:
                 temp_file_name = file_name.replace(' (1)' + temp_extension, temp_extension)
                 break
         seconds += check_interval
-    # Wait up to 20 seconds to finish download.
+        time.sleep(check_interval)
     last_file_size = 0
     # TODO: Use async thread.
-    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 35:
+    while os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 30:
         current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
         if current_file_size == last_file_size:
             # Download finished, while the file name hasn't been properly changed.
             # (Unless downloading speed is slower than 1 byte/sec.)
             break
+        last_file_size = current_file_size  # Update the file size.
         time.sleep(check_interval)
         seconds += check_interval
     # Rename temporary files: Download not finished, duplicated, ...
@@ -88,22 +88,22 @@ def download(source_url: str, thread_no: int, reply_no: int):
         os.makedirs(DESTINATION_PATH)  # create folder if it does not exist
 
     # Set the download target.
-    target = __extract_download_target(source_url, thread_no, reply_no)
-    if target is not None:  # If None, a respective error message has been issued in __extract method.
-        file_url = target[0]  # The url on the server
-        file_name = target[1]  # A file name to store in local
-        r = requests.get(file_url, stream=True)
-        file_path = os.path.join(DESTINATION_PATH, file_name)
-        if r.ok:
+    try:
+        target = __extract_download_target(source_url, thread_no, reply_no)
+        if target is not None:  # If None, a respective error message has been issued in __extract method.
+            file_url = target[0]  # The url on the server
+            file_name = target[1]  # A file name to store in local
+            request = requests.get(file_url, stream=True)
+            file_path = os.path.join(DESTINATION_PATH, file_name)
             with open(file_path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024 * 8):
+                for chunk in request.iter_content(chunk_size=1024 * 8):
                     if chunk:
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
             log("Stored as %s" % file_name)
-        else:  # HTTP status code 4??/5??
-            log("Download failed: status code {}\n{}".format(r.status_code, r.text))
+    except Exception as download_exception:
+        log("Error: Download failed.(%s)" % download_exception)
 
 
 def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> []:

@@ -1,6 +1,7 @@
 import time
 import traceback
 
+import selenium.common.exceptions
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -270,7 +271,7 @@ while True:
         session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
         log('%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
-    except TimeoutError:
+    except selenium.common.exceptions.TimeoutException:
         log('Error: Timeout.\t%s' % __get_formatted_time())
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list(%s).\t%s\n[Traceback]\n%s' %
