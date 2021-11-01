@@ -51,6 +51,8 @@ MIN_SCANNING_COUNT_ON_SESSION = 100
 MAX_SCANNING_COUNT_ON_SESSION = 1000
 PAUSE_IDLE = 600.0
 PAUSE_POWER = 3.5
+PAUSE_MULTIPLIER_MAX = 2.35
+PAUSE_MULTIPLIER_MIN = 1.05
 
 # For decreasing number of new replies
 sum_new_reply_count_last_time = 0
@@ -242,7 +244,7 @@ while True:
             elapsed_for_scanning = __get_elapsed_time(scan_start_time)
 
             # Impose a proper pause.
-            proposed_pause = last_pause * random.uniform(1.5, 3.2)
+            proposed_pause = last_pause * random.uniform(PAUSE_MULTIPLIER_MIN, PAUSE_MULTIPLIER_MAX)
             pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
             session_pause = pause
             fluctuated_pause = fluctuate(pause)
