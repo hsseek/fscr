@@ -107,7 +107,7 @@ def download(source_url: str, thread_no: int, reply_no: int):
         log("Error: Download failed.(%s)" % download_exception)
 
 
-def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> []:
+def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> []:
     domain = urlparse(page_url).netloc.replace('www', '')
     html_parser = 'html.parser'
     if domain == 'imgdb.in':
@@ -120,7 +120,7 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
                 log('Error: Cannot download %s quoted in %s #%s(이미지가 삭제된 주소입니다.)'
-                    % (int_index, source_id, reply_no))
+                    % (int_index, thread_no, reply_no))
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
         else:  # <link> tag present
@@ -129,7 +129,7 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             if target_extension == 'dn':
                 log('삭제된 이미지입니다.(A gentle error: image.dn)')  # Likely to be a file in a wrong format
             else:
-                local_name = '%s-%03d-%s.%s' % (int_index, reply_no, source_id, target_extension)
+                local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, target_extension)
                 return [target_url, local_name]
 
     # Unusual sources: Consider parsing if used often.
@@ -143,7 +143,7 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
             wait_downloading()  # Wait for seconds.
 
             local_name = '%s-%s-%03d-%s' % (
-                domain.strip('.com'), source_id, reply_no, __format_file_name(file_name))
+                domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
                       DESTINATION_PATH + local_name)
             log("Stored as %s." % local_name)
@@ -161,12 +161,35 @@ def __extract_download_target(page_url: str, source_id: int, reply_no: int) -> [
         finally:
             browser.quit()
 
+    elif domain == 'ibb.co':
+        source = requests.get(page_url).text
+        soup = BeautifulSoup(source, html_parser)
+        target_tag = soup.select_one('div#image-viewer-container > img')
+        if not target_tag:  # An empty tag, returning None.
+            if soup.select_one('body#404'):
+                log('Error: Cannot download imgbb link quoted in %s #%s(페이지가 존재하지 않습니다.)'
+                    % (thread_no, reply_no))
+            else:
+                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
+        else:  # The image link tag present
+            # Try retrieving the link.
+            target_url = target_tag['src']
+            file_name = __split_on_last_pattern(target_url, '/')[-1]
+
+            # Try retrieving the views.
+            view_tag = soup.select_one('div.content-width > div.header > div.header-content-right > div')
+            view = int(view_tag.next_element) if view_tag else 0
+
+            local_name = '%s-%s-%03d-%02d-%s' % (
+                'ibb', thread_no, reply_no, view, __format_file_name(file_name))
+            return [target_url, local_name]
+
     elif domain == 'tmpfiles.org':
-        log('Error: Unusual upload on %s: tmpfiles.org' % source_id)
+        log('Error: Unusual upload on %s: tmpfiles.org' % thread_no)
     elif domain == 'https://sendvid.com/':
-        log('Error: Unusual upload on %s: sendvid.org' % source_id)
+        log('Error: Unusual upload on %s: sendvid.org' % thread_no)
     else:
-        log('Error: Unknown source on %s: %s' % (source_id, page_url))
+        log('Error: Unknown source on %s: %s' % (thread_no, page_url))
 
 
 def __get_url_index(url: str) -> []:
