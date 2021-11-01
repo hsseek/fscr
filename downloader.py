@@ -166,11 +166,14 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
                 log('Error: The file has been deleted.')
             else:
                 log('Error: Cannot locate the download button(The file might have been deleted).')
+                log(err_soup.prettify())
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
             log('Error: Cannot retrieve tempstroage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))
+            err_soup = BeautifulSoup(browser.page_source, html_parser)
+            log(err_soup.prettify())
         finally:
             browser.quit()
 
