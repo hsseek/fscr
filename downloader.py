@@ -45,26 +45,37 @@ def __format_file_name(file_name: str) -> str:
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
 
 
-def wait_downloading():
+def wait_for_downloading(file_name_tag):
     seconds = 0
     check_interval = 1
     is_downloading = False
     temp_extension = '.crdownload'
-    temp_file_name = ''
+    file_name = None
 
-    while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
-        for file_name in os.listdir(DESTINATION_PATH):
-            if file_name.endswith(temp_extension):
-                # A temporary chrome downloading file detected.
+    if file_name_tag:  # The file name has been specified.
+        while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
+            file_name = file_name_tag.string
+            if os.path.exists(DESTINATION_PATH + file_name + temp_extension):
                 is_downloading = True
-                temp_file_name = file_name.replace(' (1)' + temp_extension, temp_extension)
                 break
-        seconds += check_interval
-        time.sleep(check_interval)
+            seconds += check_interval
+            time.sleep(check_interval)
+    else:  # Search the file.
+        while not is_downloading and seconds < 3:  # Loop up to 5 seconds to locate downloading file.
+            for file in os.listdir(DESTINATION_PATH):
+                if file.endswith(temp_extension):
+                    # A temporary chrome downloading file detected.
+                    is_downloading = True
+                    file_name = file.replace(' (1)', '').replace(temp_extension, '')
+                    break
+            seconds += check_interval
+            time.sleep(check_interval)
+
     if is_downloading:
         last_file_size = 0
         # TODO: Use async thread.
-        while is_downloading and os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 30:
+        temp_file_name = file_name + temp_extension
+        while is_downloading and os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 25:
             current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
             if current_file_size == last_file_size:
                 # Download finished, while the file name hasn't been properly changed.
@@ -82,6 +93,7 @@ def wait_downloading():
                     os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
     else:
         log("Warning: A .crdownload file not detected.(Too quickly finished?)")
+    return file_name
 
 
 def download(source_url: str, thread_no: int, reply_no: int):
@@ -139,9 +151,10 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
             browser.get(page_url)
             browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
             download_soup = BeautifulSoup(browser.page_source, html_parser)
-            file_name = download_soup.select_one('div#download > h1.filename').string
-            wait_downloading()  # Wait for seconds.
-
+            file_name_tag = download_soup.select_one('div#download > h1.filename')
+            file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
+            if file_name is None:
+                file_name = 'noname'
             local_name = '%s-%s-%03d-%s' % (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
@@ -154,7 +167,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
             else:
                 log('Error: Cannot locate the download button(The file might have been deleted).')
         except FileNotFoundError as file_exception:
-            log('Error: The file not found.\n%s' % file_exception)
+            log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
             log('Error: Cannot retrieve tempstroage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))
