@@ -155,9 +155,9 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
             if not file_name:
-                downloaded_files = glob.glob(DESTINATION_PATH + '*')  # * means all if need specific format then *.csv
-                latest_file = max(downloaded_files, key=os.path.getctime)
-                file_name = __split_on_last_pattern(latest_file, '/')
+                # Get the second latest file (the first latest is always the log file).
+                second_latest_file = sorted(glob.iglob(DESTINATION_PATH + '*'), key=os.path.getctime)[-2]
+                file_name = __split_on_last_pattern(second_latest_file, '/')[-1]
                 log('Error: Cannot retrieve tmpstorage file name, assuming %s as the file.' % file_name)
             local_name = '%s-%s-%03d-%s' % (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))

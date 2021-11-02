@@ -109,7 +109,7 @@ def scan_replies(thread_no: int, scan_count: int):
                         downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            log('Warning: Reply scanning failed on %i(%s)' % (thread_no, exception_last_line))
+            # log('Warning: Reply scanning failed on %i(%s)' % (thread_no, exception_last_line))
             try:
                 replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
                 try:
