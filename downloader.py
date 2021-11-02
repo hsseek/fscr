@@ -1,3 +1,4 @@
+import glob
 import os
 import traceback
 
@@ -153,8 +154,11 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
             download_soup = BeautifulSoup(browser.page_source, html_parser)
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
-            if file_name is None:
-                file_name = 'noname'
+            if not file_name:
+                downloaded_files = glob.glob(DESTINATION_PATH + '*')  # * means all if need specific format then *.csv
+                latest_file = max(downloaded_files, key=os.path.getctime)
+                file_name = __split_on_last_pattern(latest_file, '/')
+                log('Error: Cannot retrieve tmpstorage file name, assuming %s as the file.' % file_name)
             local_name = '%s-%s-%03d-%s' % (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
@@ -163,7 +167,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
-                log('Error: The file has been deleted.')
+                log('Error: The link has been expired.')
             else:
                 log('Error: Cannot locate the download button(The file might have been deleted).')
                 log(err_soup.prettify())
