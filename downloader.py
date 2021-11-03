@@ -153,29 +153,31 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
         browser = initiate_browser()
         passwords = ['0000', '1234']
         timeout = 3
-        download_button_xpath = '/html/body/div[2]/div/p/a'
-        password_submit_button_xpath = '/html/body/div[1]/div/form/p/input'
-        password_input_button_xpath = '//*[@id="password"]'
+
+        def element_exists(element_id: str):
+            try:
+                browser.find_element(By.ID, element_id)
+            except selenium.common.exceptions.NoSuchElementException:
+                return False
+            return True
+
         try:
             browser.get(page_url)
-            if browser.find_element(By.XPATH, password_input_button_xpath):
+            if element_exists('password'):
                 wait = WebDriverWait(browser, timeout)
                 for password in passwords:
-                    browser.find_element(By.XPATH, password_input_button_xpath).clear()
-                    browser.find_element(By.XPATH, password_input_button_xpath).send_keys(password)
-                    browser.find_element(By.XPATH, password_submit_button_xpath).click()
+                    browser.find_element(By.ID, 'password').clear()
+                    browser.find_element(By.ID, 'password').send_keys(password)
+                    browser.find_element(By.CLASS_NAME, 'btn').click()
                     try:
-                        wait.until(expected_conditions.presence_of_element_located((By.XPATH, download_button_xpath)))
+                        browser.find_element(By.LINK_TEXT, '다운로드').send_keys(Keys.ALT, Keys.ENTER)
                         log('Password matched: %s' % password)
                         break
                     except selenium.common.exceptions.TimeoutException:
                         print('Error: Incorrect password %s(%s)' % password)
                     except Exception as e:
                         print('Error: Incorrect password %s(%s)' % (password, e))
-            if browser.find_element(By.CLASS_NAME, 'btn'):
-                browser.find_element(By.CLASS_NAME, 'btn').send_keys(Keys.ALT, Keys.ENTER)
-            else:
-                browser.find_element(By.LINK_TEXT, '다운로드').send_keys(Keys.ALT, Keys.ENTER)
+            browser.find_element(By.LINK_TEXT, '다운로드').send_keys(Keys.ALT, Keys.ENTER)
             download_soup = BeautifulSoup(browser.page_source, html_parser)
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
