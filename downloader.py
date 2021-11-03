@@ -173,7 +173,10 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
                         print('Error: Incorrect password %s(%s)' % password)
                     except Exception as e:
                         print('Error: Incorrect password %s(%s)' % (password, e))
-            browser.find_element(By.XPATH, download_button_xpath).send_keys(Keys.ALT, Keys.ENTER)
+            if browser.find_element(By.CLASS_NAME, 'btn'):
+                browser.find_element(By.CLASS_NAME, 'btn').send_keys(Keys.ALT, Keys.ENTER)
+            else:
+                browser.find_element(By.LINK_TEXT, '다운로드').send_keys(Keys.ALT, Keys.ENTER)
             download_soup = BeautifulSoup(browser.page_source, html_parser)
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
