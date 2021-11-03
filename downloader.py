@@ -170,7 +170,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
                     browser.find_element(By.ID, 'password').send_keys(password)
                     browser.find_element(By.CLASS_NAME, 'btn').click()
                     try:
-                        browser.find_element(By.LINK_TEXT, '다운로드').send_keys(Keys.ALT, Keys.ENTER)
+                        wait.until(expected_conditions.presence_of_element_located((By.LINK_TEXT, '다운로드')))
                         log('Password matched: %s' % password)
                         break
                     except selenium.common.exceptions.TimeoutException:
