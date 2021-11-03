@@ -12,6 +12,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 import time
 
+from selenium.webdriver.support import expected_conditions
+from selenium.webdriver.support.wait import WebDriverWait
+
 
 def read_from_file(path: str):
     with open(path) as f:
@@ -148,9 +151,29 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
         browser = initiate_browser()
+        passwords = ['0000', '1234']
+        timeout = 3
+        download_button_xpath = '/html/body/div[2]/div/p/a'
+        password_submit_button_xpath = '/html/body/div[1]/div/form/p/input'
+        password_input_button_xpath = '//*[@id="password"]'
         try:
             browser.get(page_url)
-            browser.find_element(By.XPATH, '/html/body/div[2]/div/p/a').send_keys(Keys.ALT, Keys.ENTER)
+            password_input = browser.find_element(By.XPATH, password_input_button_xpath)
+            if password_input:
+                wait = WebDriverWait(browser, timeout)
+                for password in passwords:
+                    browser.find_element(By.XPATH, password_input_button_xpath).clear()
+                    browser.find_element(By.XPATH, password_input_button_xpath).send_keys(password)
+                    browser.find_element(By.XPATH, password_submit_button_xpath).click()
+                    try:
+                        wait.until(expected_conditions.presence_of_element_located((By.XPATH, download_button_xpath)))
+                        log('Password matched: %s' % password)
+                        break
+                    except selenium.common.exceptions.TimeoutException:
+                        print('Error: Incorrect password %s(%s)' % password)
+                    except Exception as e:
+                        print('Error: Incorrect password %s(%s)' % (password, e))
+            browser.find_element(By.XPATH, download_button_xpath).send_keys(Keys.ALT, Keys.ENTER)
             download_soup = BeautifulSoup(browser.page_source, html_parser)
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
@@ -168,8 +191,10 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Error: The link has been expired.')
+            elif err_soup.select_one('div#delete > p.delete'):
+                log('Error: Cannot locate the download button(삭제하시겠습니까?).')
             else:
-                log('Error: Cannot locate the download button(The file might have been deleted).')
+                log('Error: Cannot locate the download button.')
                 log(err_soup.prettify())
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
