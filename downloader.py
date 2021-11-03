@@ -158,8 +158,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
         password_input_button_xpath = '//*[@id="password"]'
         try:
             browser.get(page_url)
-            password_input = browser.find_element(By.XPATH, password_input_button_xpath)
-            if password_input:
+            if browser.find_element(By.XPATH, password_input_button_xpath):
                 wait = WebDriverWait(browser, timeout)
                 for password in passwords:
                     browser.find_element(By.XPATH, password_input_button_xpath).clear()
