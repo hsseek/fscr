@@ -196,10 +196,10 @@ def __get_formatted_time():
 while True:
     session_start_time = datetime.datetime.now()  # The session timer
     session_pause = 0  # Pause for the following session
-    finished_thread_ids = []  # Threads to be removed from the db
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
+    finished_thread_ids = thread_db.fetch_finished()
     log('SQL connection opened.\t(%s)' % __get_formatted_time())
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
@@ -227,7 +227,8 @@ while True:
         is_hot = True
 
         # Scan n times on the same login session.
-        while current_cycle_number < sufficient_cycle_number or is_hot:
+        # while current_cycle_number < sufficient_cycle_number or is_hot:
+        while current_cycle_number < 2:
             # Reset the reply count.
             sum_new_reply_count = 0
 
@@ -283,8 +284,6 @@ while True:
         deleted_count = thread_db.delete_old_threads()
         if not deleted_count:
             log('%d threads have been deleted from database.\t(%s)' % (deleted_count, __get_formatted_time()))
-        for finished in finished_thread_ids:
-            thread_db.delete_thread(finished)
 
     except selenium.common.exceptions.TimeoutException:
         log('Error: Timeout.\t(%s)' % __get_formatted_time())

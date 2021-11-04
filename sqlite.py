@@ -106,13 +106,16 @@ class ThreadDb:
                 # 아무것도 return 하지 않으면 get_count() 에서 값 받아야 하는 함수는 어떻게 거동?: return None
                 return 0
 
-    def fetch_tst(self) -> []:
+    def fetch_finished(self) -> []:
         cursor = self.database.cursor()
-        query = "SELECT %s, %s FROM %s" % (Table.ID, Table.LAST_UPLOADED_AT, Table.NAME)
+        query = "SELECT %s FROM %s WHERE %s=300" % (Table.ID, Table.NAME, Table.COUNT)
         cursor.execute(query)
         tuples = cursor.fetchall()
         cursor.close()
-        return tuples
+        threads = []
+        for i, thread_no in enumerate(tuples):
+            threads.append(tuples[i][0])
+        return threads
 
     def close_connection(self):
         self.database.close()
