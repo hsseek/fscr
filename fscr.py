@@ -51,8 +51,8 @@ MIN_SCANNING_COUNT_ON_SESSION = 100
 MAX_SCANNING_COUNT_ON_SESSION = 1000
 PAUSE_IDLE = 600.0
 PAUSE_POWER = 3.5
-PAUSE_MULTIPLIER_MAX = 2.35
-PAUSE_MULTIPLIER_MIN = 1.05
+PAUSE_MULTIPLIER_MAX = 2.15
+PAUSE_MULTIPLIER_MIN = 1.0
 
 # For decreasing number of new replies
 sum_new_reply_count_last_time = 0
@@ -102,11 +102,11 @@ def scan_replies(thread_no: int, scan_count: int):
                     double_line = '===================='
                     dashed_line = '--------------------'
                     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-                    report = '\n' + double_line + '\n' +\
-                        '%d   #%d   %s\n' % (thread_no, reply_no, __get_formatted_time()) +\
-                        '<%s>\n' % thread_title +\
-                        compose_reply_report(reply) + '\n' +\
-                        dashed_line
+                    report = '\n' + double_line + '\n' + \
+                             '%d   #%d   (%s)\n' % (thread_no, reply_no, __get_formatted_time()) + \
+                             '<%s>\n' % thread_title + \
+                             compose_reply_report(reply) + '\n' + \
+                             dashed_line
                     log(report)
                     for link in links_in_reply:
                         source_url = link['href']
@@ -219,7 +219,7 @@ while True:
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        log('Login successful.\t(%s)f' % __get_formatted_time())
+        log('Login successful.\t(%s)' % __get_formatted_time())
 
         # A random cycle number n
         sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -253,15 +253,15 @@ while True:
             session_pause = pause
             fluctuated_pause = fluctuate(pause)
 
-            pause_str = '-> %1.f(%1.f)' % (pause, fluctuated_pause)
-            pause_str += '\t' if pause > 100 else ' \t'  # For visual alignment
+            pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
+            pause_status_str += '\t' if pause > 100 else ' \t'  # For visual alignment
 
             current_session_span = elapsed_for_scanning + last_pause
             print('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
-                + str(sum_new_reply_count) + ' new\t'
-                + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
-                + pause_str  # A proper pose(Fluctuated pause)
-                + '%s' % __get_formatted_time())
+                  + str(sum_new_reply_count) + ' new\t'
+                  + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
+                  + '-> %s' % pause_status_str
+                  + '%s' % __get_formatted_time())
 
             # Store for the next use.
             last_pause = fluctuated_pause
@@ -273,12 +273,21 @@ while True:
             # Cycling
             current_cycle_number += 1
             is_hot = True if pause < 90 else False
+
         # Sufficient cycles have been conducted and pause is large: Finish the session.
         session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
         log('\n%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
+
+        # Trim the database.
+        deleted_count = thread_db.delete_old_threads()
+        if not deleted_count:
+            log('%d threads have been deleted from database.\t(%s)' % (deleted_count, __get_formatted_time()))
+        for finished in finished_thread_ids:
+            thread_db.delete_thread(finished)
+
     except selenium.common.exceptions.TimeoutException:
-        log('Error: Timeout.\t(%s)f' % __get_formatted_time())
+        log('Error: Timeout.\t(%s)' % __get_formatted_time())
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list(%s).\t(%s)\n[Traceback]\n%s' %
             (main_loop_exception, __get_formatted_time(), traceback.format_exc()))
@@ -296,10 +305,6 @@ while True:
                     log(err_soup.prettify())
         except Exception as e:
             log('Error: Failed to thread list page source(%s)' % e)
-
-    # Delete the finished threads from the db.
-    for finished in finished_thread_ids:
-        thread_db.delete_thread(finished)
 
     browser.quit()  # Close the browser.
     thread_db.close_connection()  # Close connection to the db.
