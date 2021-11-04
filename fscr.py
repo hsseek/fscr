@@ -200,7 +200,7 @@ while True:
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
-    log('SQL connection opened.(%s)' % __get_formatted_time())
+    log('SQL connection opened.\t(%s)' % __get_formatted_time())
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
     # Initiate the browser
@@ -219,7 +219,7 @@ while True:
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        log('Login successful.(%s)' % __get_formatted_time())
+        log('Login successful.\t(%s)f' % __get_formatted_time())
 
         # A random cycle number n
         sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -278,9 +278,9 @@ while True:
         log('\n%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
     except selenium.common.exceptions.TimeoutException:
-        log('Error: Timeout.(%s)' % __get_formatted_time())
+        log('Error: Timeout.\t(%s)f' % __get_formatted_time())
     except Exception as main_loop_exception:
-        log('Error: Cannot retrieve thread list(%s).(%s)\n[Traceback]\n%s' %
+        log('Error: Cannot retrieve thread list(%s).\t(%s)\n[Traceback]\n%s' %
             (main_loop_exception, __get_formatted_time(), traceback.format_exc()))
         try:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')
@@ -303,8 +303,8 @@ while True:
 
     browser.quit()  # Close the browser.
     thread_db.close_connection()  # Close connection to the db.
-    log('SQL connection closed. (%s)' % __get_formatted_time())
+    log('SQL connection closed.\t(%s)' % __get_formatted_time())
     # Pause again.
     session_pause = fluctuate(session_pause)
-    log('Pause for %.1f min. (%s)\n' % ((session_pause / 60), __get_formatted_time()))
+    log('Pause for %.1f min.\t(%s)\n' % ((session_pause / 60), __get_formatted_time()))
     time.sleep(session_pause)
