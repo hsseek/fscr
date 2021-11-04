@@ -227,8 +227,7 @@ while True:
         is_hot = True
 
         # Scan n times on the same login session.
-        # while current_cycle_number < sufficient_cycle_number or is_hot:
-        while current_cycle_number < 2:
+        while current_cycle_number < sufficient_cycle_number or is_hot:
             # Reset the reply count.
             sum_new_reply_count = 0
 
