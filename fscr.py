@@ -99,10 +99,14 @@ def scan_replies(thread_no: int, scan_count: int):
                     # Retrieve the reply information.
                     reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
                     reply_no = int(reply_no_str.strip().replace('#', ''))
-                    separator = '--------------------'
+                    double_line = '===================='
+                    dashed_line = '--------------------'
                     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-                    report = '%s\n<%s> %s #%d\n' % (separator, thread_title, thread_no, reply_no)  # Report head
-                    report += compose_reply_report(reply) + '\n' + separator  # Concatenate the report content.
+                    report = '\n' + double_line + '\n' +\
+                        '%d   #%d   %s\n' % (thread_no, reply_no, __get_formatted_time()) +\
+                        '<%s>\n' % thread_title +\
+                        compose_reply_report(reply) + '\n' +\
+                        dashed_line
                     log(report)
                     for link in links_in_reply:
                         source_url = link['href']
@@ -168,7 +172,7 @@ def scan_threads(soup) -> int:
             row_count = thread.select_one('span.count').string
             if row_count == '완결':
                 thread_title = thread.select_one('span.title').string
-                log('<%s> reached the limit: %s' % (thread_title, ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
+                log('\n<%s> reached the limit: %s' % (thread_title, ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
                 count = int(300)
                 # Add to finished list.
                 finished_thread_ids.append(thread_id)
@@ -196,7 +200,7 @@ while True:
 
     # Connect to the database
     thread_db = sqlite.ThreadDb()
-    log('MySQL connection opened.\t%s' % __get_formatted_time())
+    log('SQL connection opened.\t%s' % __get_formatted_time())
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
     # Initiate the browser
@@ -253,7 +257,7 @@ while True:
             pause_str += '\t' if pause > 100 else ' \t'  # For visual alignment
 
             current_session_span = elapsed_for_scanning + last_pause
-            log('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
+            print('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
                 + str(sum_new_reply_count) + ' new\t'
                 + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
                 + pause_str  # A proper pose(Fluctuated pause)
