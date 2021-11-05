@@ -126,7 +126,7 @@ def download(source_url: str, thread_no: int, reply_no: int):
         log("Error: Download failed.(%s)" % download_exception)
 
 
-def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> []:
+def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> ():
     domain = urlparse(page_url).netloc.replace('www', '')
     html_parser = 'html.parser'
     if domain == 'imgdb.in':
@@ -149,7 +149,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
                 log('삭제된 이미지입니다.(A gentle error: image.dn)')  # Likely to be a file in a wrong format
             else:
                 local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, target_extension)
-                return [target_url, local_name]
+                return target_url, local_name
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
@@ -157,7 +157,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
         submit_btn_xpath = '/html/body/div[1]/div/form/p/input'
         pw_input_id = 'password'
         browser = initiate_browser()
-        passwords = ['0000', '1234', '1111']
+        passwords = ('0000', '1234', '1111')
         timeout = 3
 
         def element_exists(element_id: str):
@@ -238,7 +238,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
 
             local_name = '%s-%s-%03d-%02d-%s' % (
                 'ibb', thread_no, reply_no, view, __format_file_name(file_name))
-            return [target_url, local_name]
+            return target_url, local_name
 
     elif domain == 'tmpfiles.org':
         log('Error: Unusual upload on %s: tmpfiles.org' % thread_no)
@@ -248,7 +248,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
         log('Error: Unknown source on %s: %s' % (thread_no, page_url))
 
 
-def __get_url_index(url: str) -> []:
+def __get_url_index(url: str) -> ():
     url_index = []  # for example, url_index = [3, 5, 1, 9] (a list of int)
     str_index = __split_on_last_pattern(url, '/')[-1]  # 'a3Fx' from 'https://domain.com/a3Fx'
     with open('SEQUENCE.pv', 'r') as file:
@@ -259,18 +259,18 @@ def __get_url_index(url: str) -> []:
             if char == candidates:
                 url_index.append(n)  # Found the matching index
                 break
-    return url_index
+    return tuple(url_index)
 
 
-def __format_url_index(url_index: []) -> str:
+def __format_url_index(url_index: ()) -> str:
     formatted_index = ''
     for index in url_index:
         formatted_index += '%02d' % index
     return formatted_index  # '19092307'
 
 
-def __split_on_last_pattern(string: str, pattern: str) -> []:
+def __split_on_last_pattern(string: str, pattern: str) -> ():
     last_piece = string.split(pattern)[-1]  # domain.com/image.jpg -> jpg
     leading_chunks = string.split(pattern)[:-1]  # [domain, com/image]
     leading_piece = pattern.join(leading_chunks)  # domain.com/image
-    return [leading_piece, last_piece]  # [domain.com/image, jpg]
+    return leading_piece, last_piece  # [domain.com/image, jpg]

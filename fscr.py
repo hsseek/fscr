@@ -66,7 +66,7 @@ def log(message: str):
 
 
 def __tail(iterable, n: int):
-    # tail([A, B, C, D, E], 3) returns [E, F, G]
+    # tail([A, B, C, D, E], 3) returns [C, D, E]
     return iter(collections.deque(iterable, maxlen=n))
 
 
@@ -113,7 +113,7 @@ def scan_replies(thread_no: int, scan_count: int):
                         downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            # log('Warning: Reply scanning failed on %i(%s)' % (thread_no, exception_last_line))
+            print('Warning: Reply scanning failed on %i(%s)' % (thread_no, exception_last_line))
             try:
                 replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
                 try:
@@ -287,7 +287,7 @@ while True:
     except selenium.common.exceptions.TimeoutException:
         log('Error: Timeout.\t(%s)' % __get_formatted_time())
     except selenium.common.exceptions.WebDriverException:
-        log('Error: Cannot operate chromedriver(%s).\t(WebDriverException)\n%s' %
+        log('Error: Cannot operate WebDriver(WebDriverException).\t(%s)\n%s' %
             (__get_formatted_time(), traceback.format_exc()))
         time.sleep(fluctuate(210))  # Assuming the server is not operating.
     except Exception as main_loop_exception:
