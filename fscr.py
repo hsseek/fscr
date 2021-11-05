@@ -286,6 +286,10 @@ while True:
 
     except selenium.common.exceptions.TimeoutException:
         log('Error: Timeout.\t(%s)' % __get_formatted_time())
+    except selenium.common.exceptions.WebDriverException:
+        log('Error: Cannot operate chromedriver(%s).\t(WebDriverException)\n%s' %
+            (__get_formatted_time(), traceback.format_exc()))
+        time.sleep(fluctuate(210))  # Assuming the server is not operating.
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list(%s).\t(%s)\n[Traceback]\n%s' %
             (main_loop_exception, __get_formatted_time(), traceback.format_exc()))
@@ -303,6 +307,8 @@ while True:
                     log(err_soup.prettify())
         except Exception as e:
             log('Error: Failed to thread list page source(%s)' % e)
+        finally:
+            time.sleep(fluctuate(90))
 
     browser.quit()  # Close the browser.
     thread_db.close_connection()  # Close connection to the db.
