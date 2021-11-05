@@ -36,7 +36,10 @@ def initiate_browser():
     # A chrome web driver with headless option
     service = Service(DRIVER_PATH)
     options = webdriver.ChromeOptions()
-    options.add_experimental_option("prefs", {"download.default_directory": DESTINATION_PATH})
+    options.add_experimental_option("prefs", {
+        "download.default_directory": DESTINATION_PATH,
+        "download.prompt_for_download": False
+    })
     options.add_argument('headless')
     options.add_argument('disable-gpu')
     # options.add_experimental_option("detach", True)
@@ -150,8 +153,11 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
+        download_btn_xpath = '/html/body/div[2]/div/p/a'
+        submit_btn_xpath = '/html/body/div[1]/div/form/p/input'
+        pw_input_id = 'password'
         browser = initiate_browser()
-        passwords = ['0000', '1234']
+        passwords = ['0000', '1234', '1111']
         timeout = 3
 
         def element_exists(element_id: str):
@@ -163,21 +169,22 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> [
 
         try:
             browser.get(page_url)
-            if element_exists('password'):
+            if element_exists(pw_input_id):
                 wait = WebDriverWait(browser, timeout)
                 for password in passwords:
-                    browser.find_element(By.ID, 'password').clear()
-                    browser.find_element(By.ID, 'password').send_keys(password)
-                    browser.find_element(By.CLASS_NAME, 'btn').click()
+                    browser.find_element(By.ID, pw_input_id).clear()
+                    browser.find_element(By.ID, pw_input_id).send_keys(password)
+                    browser.find_element(By.XPATH, submit_btn_xpath).click()
                     try:
-                        wait.until(expected_conditions.presence_of_element_located((By.LINK_TEXT, '다운로드')))
+                        wait.until(expected_conditions.presence_of_element_located((By.XPATH, download_btn_xpath)))
                         log('Password matched: %s' % password)
                         break
                     except selenium.common.exceptions.TimeoutException:
-                        print('Error: Incorrect password %s(%s)' % password)
+                        print('Error: Incorrect password %s.' % password)
                     except Exception as e:
                         print('Error: Incorrect password %s(%s)' % (password, e))
-            browser.find_element(By.LINK_TEXT, '다운로드').send_keys(Keys.ALT, Keys.ENTER)
+            # browser.find_element(By.XPATH, download_btn_xpath).send_keys(Keys.ALT, Keys.ENTER)
+            browser.find_element(By.XPATH, download_btn_xpath).click()
             download_soup = BeautifulSoup(browser.page_source, html_parser)
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
