@@ -65,11 +65,6 @@ def log(message: str):
     print(message)
 
 
-def __tail(iterable, n: int):
-    # tail([A, B, C, D, E], 3) returns [C, D, E]
-    return iter(collections.deque(iterable, maxlen=n))
-
-
 def __get_elapsed_time(start_time) -> float:
     return (datetime.datetime.now() - start_time).total_seconds()
 
@@ -85,12 +80,7 @@ def scan_replies(thread_no: int, scan_count: int):
             # Get the thread list and the scanning targets(the new replies)
             replies_soup = BeautifulSoup(browser.page_source, 'html.parser')
             replies = replies_soup.select('div.thread-reply')
-
-            # the new_replies is not a bs4.results but a collection.deque
-            # It is iterable, but does not have Tag.select method.
-            # But its elements are Tags so they have select method.
-            # 마지막 n개 자르기 위해 iter 함수 쓰지 않았다면 select 2 번으로 한 줄로 끝냈을 것.
-            new_replies = __tail(replies, scan_count)
+            new_replies = replies[-scan_count:]
 
             # Now scan the new replies.
             for reply in new_replies:
