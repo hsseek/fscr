@@ -240,9 +240,9 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
 
     elif domain == 'tmpfiles.org':
         log('Error: Unusual upload on %s: tmpfiles.org.' % thread_no)
-    elif domain == 'https://sendvid.com':
+    elif domain == 'sendvid.com':
         log('Error: Unusual upload on %s: sendvid.org.' % thread_no)
-    elif domain == 'https://freethread.net':
+    elif domain == 'freethread.net':
         log('%s referred in %s.' % (page_url, thread_no))
     else:
         log('Error: Unknown source on %s.(%s)' % (thread_no, page_url))
