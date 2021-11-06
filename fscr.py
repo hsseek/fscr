@@ -103,7 +103,7 @@ def scan_replies(thread_no: int, scan_count: int):
                     dashed_line = '--------------------'
                     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
                     report = '\n' + double_line + '\n' + \
-                             '%d   #%d   (%s)\n' % (thread_no, reply_no, __get_formatted_time()) + \
+                             '%d   #%d   (%s)\n' % (thread_no, reply_no, __get_time_str()) + \
                              '<%s>\n' % thread_title + \
                              compose_reply_report(reply) + '\n' + \
                              dashed_line
@@ -113,7 +113,7 @@ def scan_replies(thread_no: int, scan_count: int):
                         downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            print('Warning: Reply scanning failed on %i(%s)' % (thread_no, exception_last_line))
+            print('Warning: Reply scanning failed on %i(%s).' % (thread_no, exception_last_line))
             try:
                 replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
                 try:
@@ -121,16 +121,16 @@ def scan_replies(thread_no: int, scan_count: int):
                         # if 1: No replies present (likely te be "start thread" exception)
                         log('Error: html structure\n' + replies_err_soup.prettify())
                 except Exception as reply_count_exception:
-                    log('Error: reply count not available(%s).' % reply_count_exception)
+                    log('Error: reply count not available(%s).\t(%s)' % (reply_count_exception, __get_time_str()))
             except Exception as scan_exception:
-                log('Error: Failed to load page source %s(%s)' % (thread_no, str(scan_exception)))
+                log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
     except Exception as scan_exception:
-        log('Error: Cannot scan %i(%s)' % (thread_no, str(scan_exception)))
+        log('Error: Cannot scan %i(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
         try:
             replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             log(replies_err_soup.prettify())
         except Exception as scan_exception:
-            log('Error: Failed to load page source %s: %s' % (thread_no, str(scan_exception)))
+            log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
 
 
 def compose_reply_report(reply):
@@ -144,7 +144,7 @@ def compose_reply_report(reply):
             elif content == '<br/>' or '<br>':
                 message += '\n'
             else:
-                message += 'Error: Unknown tag: %s\n' % content
+                message += 'Error: Unknown tag.\n%s\n' % content
         else:  # A simple text element
             message += str(content).strip()
     return message
@@ -172,7 +172,7 @@ def scan_threads(soup) -> int:
             row_count = thread.select_one('span.count').string
             if row_count == '완결':
                 thread_title = thread.select_one('span.title').string
-                log('\n<%s> reached the limit: %s' % (thread_title, ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
+                log('\n<%s> reached the limit(%s).' % (thread_title, ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
                 count = int(300)
                 # Add to finished list.
                 finished_thread_ids.append(thread_id)
@@ -188,19 +188,20 @@ def scan_threads(soup) -> int:
     return sum_reply_count_to_scan
 
 
-def __get_formatted_time():
+def __get_time_str():
     return str(datetime.datetime.now()).split('.')[0]
 
 
 # The main loop
 while True:
     session_start_time = datetime.datetime.now()  # The session timer
+    last_cycled_time = datetime.datetime.now()  # The scan cycling log
     session_pause = 0  # Pause for the following session
 
     # Connect to the database
-    thread_db = sqlite.ThreadDb()
+    thread_db = sqlite.ThreadDatabase()
     finished_thread_ids = thread_db.fetch_finished()
-    log('SQL connection opened.\t(%s)' % __get_formatted_time())
+    log('SQL connection opened.\t(%s)' % __get_time_str())
     thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
     # Initiate the browser
@@ -219,7 +220,7 @@ while True:
 
         wait = WebDriverWait(browser, HTML_TIMEOUT)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        log('Login successful.\t(%s)' % __get_formatted_time())
+        log('Login successful.\t(%s)' % __get_time_str())
 
         # A random cycle number n
         sufficient_cycle_number = random.randint(MIN_SCANNING_COUNT_ON_SESSION, MAX_SCANNING_COUNT_ON_SESSION)
@@ -261,7 +262,7 @@ while True:
                   + str(sum_new_reply_count) + ' new\t'
                   + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
                   + '-> %s' % pause_status_str
-                  + '%s' % __get_formatted_time())
+                  + '%s' % __get_time_str())
 
             # Store for the next use.
             last_pause = fluctuated_pause
@@ -273,6 +274,7 @@ while True:
             # Cycling
             current_cycle_number += 1
             is_hot = True if pause < 90 else False
+            last_cycled_time = datetime.datetime.now()
 
         # Sufficient cycles have been conducted and pause is large: Finish the session.
         session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
@@ -282,17 +284,17 @@ while True:
         # Trim the database.
         deleted_count = thread_db.delete_old_threads()
         if not deleted_count:
-            log('%d threads have been deleted from database.\t(%s)' % (deleted_count, __get_formatted_time()))
+            log('%d threads have been deleted from database.\t(%s)' % (deleted_count, __get_time_str()))
 
     except selenium.common.exceptions.TimeoutException:
-        log('Error: Timeout.\t(%s)' % __get_formatted_time())
+        log('Error: Timeout in %s.\t(%s)' % (__get_elapsed_time(last_cycled_time), __get_time_str()))
     except selenium.common.exceptions.WebDriverException:
         log('Error: Cannot operate WebDriver(WebDriverException).\t(%s)\n%s' %
-            (__get_formatted_time(), traceback.format_exc()))
+            (__get_time_str(), traceback.format_exc()))
         time.sleep(fluctuate(210))  # Assuming the server is not operating.
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list(%s).\t(%s)\n[Traceback]\n%s' %
-            (main_loop_exception, __get_formatted_time(), traceback.format_exc()))
+            (main_loop_exception, __get_time_str(), traceback.format_exc()))
         try:
             err_soup = BeautifulSoup(browser.page_source, 'html.parser')
             side_pane_elements = err_soup.select('div.user-info > a.btn')
@@ -312,8 +314,8 @@ while True:
 
     browser.quit()  # Close the browser.
     thread_db.close_connection()  # Close connection to the db.
-    log('SQL connection closed.\t(%s)' % __get_formatted_time())
+    log('SQL connection closed.\t(%s)' % __get_time_str())
     # Pause again.
     session_pause = fluctuate(session_pause)
-    log('Pause for %.1f min.\t(%s)\n' % ((session_pause / 60), __get_formatted_time()))
+    log('Pause for %.1f min.\t(%s)\n' % ((session_pause / 60), __get_time_str()))
     time.sleep(session_pause)

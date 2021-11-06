@@ -98,8 +98,6 @@ def wait_for_downloading(file_name_tag):
                     os.remove(DESTINATION_PATH + file)
                 else:
                     os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
-    else:
-        log("Warning: A .crdownload file not detected.(Too quickly finished?)")
     return file_name
 
 
@@ -177,12 +175,12 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                     browser.find_element(By.XPATH, submit_btn_xpath).click()
                     try:
                         wait.until(expected_conditions.presence_of_element_located((By.XPATH, download_btn_xpath)))
-                        log('Password matched: %s' % password)
+                        log('%s: Password matched.' % password)
                         break
                     except selenium.common.exceptions.TimeoutException:
                         print('Error: Incorrect password %s.' % password)
                     except Exception as e:
-                        print('Error: Incorrect password %s(%s)' % (password, e))
+                        print('Error: Incorrect password %s(%s).' % (password, e))
             # browser.find_element(By.XPATH, download_btn_xpath).send_keys(Keys.ALT, Keys.ENTER)
             browser.find_element(By.XPATH, download_btn_xpath).click()
             download_soup = BeautifulSoup(browser.page_source, html_parser)
@@ -210,7 +208,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
-            log('Error: Cannot retrieve tempstroage source(%s).\n[Traceback]\n%s' %
+            log('Error: Cannot retrieve tmpstroage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             log(err_soup.prettify())
@@ -241,11 +239,13 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
             return target_url, local_name
 
     elif domain == 'tmpfiles.org':
-        log('Error: Unusual upload on %s: tmpfiles.org' % thread_no)
-    elif domain == 'https://sendvid.com/':
-        log('Error: Unusual upload on %s: sendvid.org' % thread_no)
+        log('Error: Unusual upload on %s: tmpfiles.org.' % thread_no)
+    elif domain == 'https://sendvid.com':
+        log('Error: Unusual upload on %s: sendvid.org.' % thread_no)
+    elif domain == 'https://freethread.net':
+        log('%s referred in %s.' % (page_url, thread_no))
     else:
-        log('Error: Unknown source on %s: %s' % (thread_no, page_url))
+        log('Error: Unknown source on %s.(%s)' % (thread_no, page_url))
 
 
 def __get_url_index(url: str) -> ():

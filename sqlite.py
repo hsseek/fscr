@@ -8,7 +8,7 @@ class Table:
     LAST_UPLOADED_AT = 'last_uploaded_at'
 
 
-class ThreadDb:
+class ThreadDatabase:
     def __init__(self):
         def read_from_file(path: str):
             with open(path) as f:
