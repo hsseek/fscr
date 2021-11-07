@@ -25,6 +25,7 @@ def read_from_file(path: str):
 LOG_PATH = read_from_file('LOG_PATH.pv')
 DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
 DESTINATION_PATH = read_from_file('download_destination_path.pv')
+DUMP_PATH = read_from_file('DUMP_PATH.pv')
 
 
 def log(message: str):
@@ -124,7 +125,7 @@ def download(source_url: str, thread_no: int, reply_no: int):
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
-            log("Stored as %s\t(%s)" % (file_name, __get_time_str()))
+            log("Stored as %s\t(%s)" % (DUMP_PATH + file_name, __get_time_str()))
     except Exception as download_exception:
         log("Error: Download failed.(%s)\t(%s)" % (download_exception, __get_time_str()))
 
@@ -200,7 +201,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
                       DESTINATION_PATH + local_name)
-            log("Stored as %s.\t(%s)" % (local_name, __get_time_str()))
+            log("Stored as %s.\t(%s)" % (DUMP_PATH + local_name, __get_time_str()))
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
