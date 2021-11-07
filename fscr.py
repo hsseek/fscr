@@ -9,7 +9,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 import bs4
 from bs4 import BeautifulSoup
-import collections
 import random
 import datetime
 # Custom scripts

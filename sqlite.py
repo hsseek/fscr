@@ -65,12 +65,12 @@ class ThreadDatabase:
 
     def delete_old_threads(self) -> int:
         cursor = self.database.cursor()
-        select_query = "SELECT %s FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 60 DAY)" % \
+        select_query = "SELECT %s FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 14 DAY)" % \
                        (Table.ID, Table.NAME, Table.LAST_UPLOADED_AT)
         cursor.execute(select_query)
         counts = len(cursor.fetchall())
 
-        delete_query = "DELETE FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 60 DAY)" % \
+        delete_query = "DELETE FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 14 DAY)" % \
                        (Table.NAME, Table.LAST_UPLOADED_AT)
         cursor.execute(delete_query)
         self.database.commit()

@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 import time
 
 from selenium.webdriver.support import expected_conditions
@@ -47,6 +46,34 @@ def initiate_browser():
     # options.add_experimental_option("detach", True)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
+
+
+def __get_url_index(url: str) -> ():
+    url_index = []  # for example, url_index = [3, 5, 1, 9] (a list of int)
+    str_index = __split_on_last_pattern(url, '/')[-1]  # 'a3Fx' from 'https://domain.com/a3Fx'
+    with open('SEQUENCE.pv', 'r') as file:
+        sequence = file.read().split('\n')
+
+    for char in str_index:  # a -> 3 -> F -> x
+        for n, candidates in enumerate(sequence):
+            if char == candidates:
+                url_index.append(n)  # Found the matching index
+                break
+    return tuple(url_index)
+
+
+def __format_url_index(url_index: ()) -> str:
+    formatted_index = ''
+    for index in url_index:
+        formatted_index += '%02d' % index
+    return formatted_index  # '19092307'
+
+
+def __split_on_last_pattern(string: str, pattern: str) -> ():
+    last_piece = string.split(pattern)[-1]  # domain.com/image.jpg -> jpg
+    leading_chunks = string.split(pattern)[:-1]  # [domain, com/image]
+    leading_piece = pattern.join(leading_chunks)  # domain.com/image
+    return leading_piece, last_piece  # [domain.com/image, jpg]
 
 
 def __format_file_name(file_name: str) -> str:
@@ -125,7 +152,7 @@ def download(source_url: str, thread_no: int, reply_no: int):
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
-            log("Stored as %s\t(%s)" % (DUMP_PATH + file_name, __get_time_str()))
+            log("%s\t(%s)" % (DUMP_PATH + file_name, __get_time_str()))
     except Exception as download_exception:
         log("Error: Download failed.(%s)\t(%s)" % (download_exception, __get_time_str()))
 
@@ -201,7 +228,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
                       DESTINATION_PATH + local_name)
-            log("Stored as %s.\t(%s)" % (DUMP_PATH + local_name, __get_time_str()))
+            log("%s.\t(%s)" % (DUMP_PATH + local_name, __get_time_str()))
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
@@ -214,7 +241,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
-            log('Error: Cannot retrieve tmpstroage source(%s).\n[Traceback]\n%s' %
+            log('Error: Cannot retrieve tmpstorage source(%s).\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()))
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             log(err_soup.prettify())
@@ -252,31 +279,3 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         log('%s quoted in %s.' % (page_url, thread_no))
     else:
         log('Error: Unknown source on %s.(%s)' % (thread_no, page_url))
-
-
-def __get_url_index(url: str) -> ():
-    url_index = []  # for example, url_index = [3, 5, 1, 9] (a list of int)
-    str_index = __split_on_last_pattern(url, '/')[-1]  # 'a3Fx' from 'https://domain.com/a3Fx'
-    with open('SEQUENCE.pv', 'r') as file:
-        sequence = file.read().split('\n')
-
-    for char in str_index:  # a -> 3 -> F -> x
-        for n, candidates in enumerate(sequence):
-            if char == candidates:
-                url_index.append(n)  # Found the matching index
-                break
-    return tuple(url_index)
-
-
-def __format_url_index(url_index: ()) -> str:
-    formatted_index = ''
-    for index in url_index:
-        formatted_index += '%02d' % index
-    return formatted_index  # '19092307'
-
-
-def __split_on_last_pattern(string: str, pattern: str) -> ():
-    last_piece = string.split(pattern)[-1]  # domain.com/image.jpg -> jpg
-    leading_chunks = string.split(pattern)[:-1]  # [domain, com/image]
-    leading_piece = pattern.join(leading_chunks)  # domain.com/image
-    return leading_piece, last_piece  # [domain.com/image, jpg]
