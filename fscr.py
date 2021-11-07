@@ -65,14 +65,15 @@ def log(message: str):
     print(message)
 
 
-def __get_elapsed_time(start_time) -> float:
+def __get_elapsed_sec(start_time) -> float:
     return (datetime.datetime.now() - start_time).total_seconds()
 
 
 def scan_replies(thread_no: int, scan_count: int):
     try:
         # Open the page to scan
-        browser.get(ROOT_DOMAIN + CAUTION_PATH + "/" + str(thread_no))
+        thread_url = ROOT_DOMAIN + CAUTION_PATH + "/" + str(thread_no)
+        browser.get(thread_url)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
         try:
             wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply',)))
@@ -83,6 +84,7 @@ def scan_replies(thread_no: int, scan_count: int):
             new_replies = replies[-scan_count:]
 
             # Now scan the new replies.
+            # TODO: Scan #1 as well
             for reply in new_replies:
                 links_in_reply = reply.select('div.th-contents > a.link')
                 if links_in_reply:  # Link(s) present in the reply
@@ -93,9 +95,9 @@ def scan_replies(thread_no: int, scan_count: int):
                     dashed_line = '--------------------'
                     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
                     report = '\n' + double_line + '\n' + \
-                             '%d   #%d   (%s)\n' % (thread_no, reply_no, __get_time_str()) + \
-                             '<%s>\n' % thread_title + \
+                             '<%s>  #%d\n' % (thread_title, reply_no) + \
                              compose_reply_report(reply) + '\n' + \
+                             '(%s)\n' % thread_url + \
                              dashed_line
                     log(report)
                     for link in links_in_reply:
@@ -235,8 +237,7 @@ while True:
 
             # Print the time elapsed for scanning.
             scan_end_time = datetime.datetime.now()
-            # thread-list 든 reply-list 든 로딩 시간 거의 동일하며 이 로딩이 RDS (~ 0.7s/page)
-            elapsed_for_scanning = __get_elapsed_time(scan_start_time)
+            elapsed_for_scanning = __get_elapsed_sec(scan_start_time)
 
             # Impose a proper pause.
             proposed_pause = last_pause * random.uniform(PAUSE_MULTIPLIER_MIN, PAUSE_MULTIPLIER_MAX)
@@ -267,7 +268,7 @@ while True:
             last_cycled_time = datetime.datetime.now()
 
         # Sufficient cycles have been conducted and pause is large: Finish the session.
-        session_elapsed_minutes = __get_elapsed_time(session_start_time) / 60
+        session_elapsed_minutes = __get_elapsed_sec(session_start_time) / 60
         log('\n%dth cycle finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
 
@@ -277,7 +278,7 @@ while True:
             log('%d threads have been deleted from database.\t(%s)' % (deleted_count, __get_time_str()))
 
     except selenium.common.exceptions.TimeoutException:
-        log('Error: Timeout in %s.\t(%s)' % (__get_elapsed_time(last_cycled_time), __get_time_str()))
+        log('Error: Timeout in %.1f min.\t(%s)' % ((__get_elapsed_sec(last_cycled_time) / 60), __get_time_str()))
     except selenium.common.exceptions.WebDriverException:
         log('Error: Cannot operate WebDriver(WebDriverException).\t(%s)\n%s' %
             (__get_time_str(), traceback.format_exc()))
