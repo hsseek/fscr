@@ -141,7 +141,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: Cannot download %s quoted in %s #%s.\t%s'
+                log('Error: Cannot download %s quoted in %s #%s.\t(%s)'
                     % (int_index, thread_no, reply_no, __get_time_str()))
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
@@ -149,7 +149,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
             target_url = target_tag['href']  # url of the file to download
             target_extension = target_url.split('.')[-1]
             if target_extension == 'dn':
-                log('삭제된 이미지입니다.(image.dn)\t%s' % __get_time_str())  # Likely to be a file in a wrong format
+                log('삭제된 이미지입니다.(image.dn)\t(%s)' % __get_time_str())  # Likely to be a file in a wrong format
             else:
                 local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, target_extension)
                 return target_url, local_name
@@ -200,15 +200,15 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(DESTINATION_PATH + file_name,
                       DESTINATION_PATH + local_name)
-            log("Stored as %s.\t%s" % (local_name, __get_time_str()))
+            log("Stored as %s.\t(%s)" % (local_name, __get_time_str()))
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
-                log('Error: The link has been expired.\t%s' % __get_time_str())
+                log('Error: The link has been expired.\t(%s)' % __get_time_str())
             elif err_soup.select_one('div#delete > p.delete'):
-                log('Error: Cannot locate the download button(삭제하시겠습니까?).\t%s' % __get_time_str())
+                log('Error: Cannot locate the download button(삭제하시겠습니까?).\t(%s)' % __get_time_str())
             else:
-                log('Error: Cannot locate the download button.\t%s' % __get_time_str())
+                log('Error: Cannot locate the download button.\t(%s)' % __get_time_str())
                 log(err_soup.prettify())
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
@@ -226,7 +226,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
             if soup.select_one('body#404'):
-                log('Error: Cannot download imgbb link quoted in %s #%s.\t%s'
+                log('Error: Cannot download imgbb link quoted in %s #%s.\t(%s)'
                     % (thread_no, reply_no, __get_time_str()))
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())

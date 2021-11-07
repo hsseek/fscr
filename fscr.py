@@ -81,10 +81,28 @@ def scan_replies(thread_no: int, scan_count: int):
             # Get the thread list and the scanning targets(the new replies)
             replies_soup = BeautifulSoup(browser.page_source, 'html.parser')
             replies = replies_soup.select('div.thread-reply')
+
+            if not replies or len(replies) < scan_count:  # The #1 needs scanning.
+                head = replies_soup.select_one('div.thread-first-reply')
+                links_in_head = head.select('a.link')
+                if links_in_head:  # Link(s) present in the head
+                    # Retrieve the reply information.
+                    double_line = '===================='
+                    dashed_line = '--------------------'
+                    thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
+                    report = '\n' + double_line + '\n' + \
+                             '<%s>  #1\n' % thread_title + \
+                             compose_reply_report(head) + '\n' + \
+                             '(%s)\n' % thread_url + \
+                             dashed_line
+                    log(report)
+                    for link in links_in_head:
+                        source_url = link['href']
+                        downloader.download(source_url, thread_no, 1)
+
             new_replies = replies[-scan_count:]
 
             # Now scan the new replies.
-            # TODO: Scan #1 as well
             for reply in new_replies:
                 links_in_reply = reply.select('div.th-contents > a.link')
                 if links_in_reply:  # Link(s) present in the reply
@@ -138,7 +156,7 @@ def compose_reply_report(reply):
             else:
                 message += 'Error: Unknown tag.\n%s\n' % content
         else:  # A simple text element
-            message += str(content).strip()
+            message += str(content).strip() + " "
     return message
 
 
