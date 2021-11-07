@@ -71,79 +71,86 @@ def __get_elapsed_sec(start_time) -> float:
     return (datetime.datetime.now() - start_time).total_seconds()
 
 
-def scan_replies(thread_no: int, scan_count: int):
+def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
     try:
         # Open the page to scan
         thread_url = ROOT_DOMAIN + CAUTION_PATH + "/" + str(thread_no)
         browser.get(thread_url)
         wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
-        try:
-            wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply',)))
 
-            # Get the thread list and the scanning targets(the new replies)
+        is_scan_head_only = True if scan_count == 1 and is_new_thread else False
+        if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
             replies_soup = BeautifulSoup(browser.page_source, html_parser)
-            replies = replies_soup.select('div.thread-reply')
-
-            if not replies or len(replies) < scan_count:  # The #1 needs scanning.
-                head = replies_soup.select_one('div.thread-first-reply')
-                links_in_head = head.select('a.link')
-                if links_in_head:  # Link(s) present in the head
-                    # Retrieve the reply information.
-                    double_line = '===================='
-                    dashed_line = '--------------------'
-                    thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-                    report = '\n' + double_line + '\n' + \
-                             '<%s>  #1\n' % thread_title + \
-                             compose_reply_report(head) + '\n' + \
-                             '(%s)\n' % thread_url + \
-                             dashed_line
-                    log(report)
-                    for link in links_in_head:
-                        source_url = link['href']
-                        downloader.download(source_url, thread_no, 1)
-
-            new_replies = replies[-scan_count:]
-
-            # Now scan the new replies.
-            for reply in new_replies:
-                links_in_reply = reply.select('div.th-contents > a.link')
-                if links_in_reply:  # Link(s) present in the reply
-                    # Retrieve the reply information.
-                    reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
-                    reply_no = int(reply_no_str.strip().replace('#', ''))
-                    double_line = '===================='
-                    dashed_line = '--------------------'
-                    thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-                    report = '\n' + double_line + '\n' + \
-                             '<%s>  #%d\n' % (thread_title, reply_no) + \
-                             compose_reply_report(reply) + '\n' + \
-                             '(%s)\n' % thread_url + \
-                             dashed_line
-                    log(report)
-                    for link in links_in_reply:
-                        source_url = link['href']
-                        downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
-        except Exception as reply_exception:
-            exception_last_line = str(reply_exception).splitlines()[-1]
-            log('Error: Reply scanning failed on %i(%s).\t(%s)\n[Traceback]\n%s' %
-                (thread_no, exception_last_line, __get_time_str(), traceback.format_exc()))
+            head = replies_soup.select_one('div.thread-first-reply')
+            links_in_head = head.select('a.link')
+            if links_in_head:  # Link(s) present in the head
+                log(compose_reply_report(replies_soup, thread_url, head))
+                for link in links_in_head:
+                    source_url = link['href']
+                    downloader.download(source_url, thread_no, 1)
+            return
+        else:  # Need to scan replies as well.
             try:
-                replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
-                log('Error: html structure\n' + replies_err_soup.prettify())
+                wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply')))
+                # Get the thread list and the scanning targets(the new replies)
+                replies_soup = BeautifulSoup(browser.page_source, html_parser)
+                replies = replies_soup.select('div.thread-reply')
+
+                if not replies or len(replies) < scan_count:  # The #1 needs scanning.
+                    head = replies_soup.select_one('div.thread-first-reply')
+                    links_in_head = head.select('a.link')
+                    if links_in_head:  # Link(s) present in the head
+                        log(compose_reply_report(replies_soup, thread_url, head))
+                        for link in links_in_head:
+                            source_url = link['href']
+                            downloader.download(source_url, thread_no, 1)
+
+                new_replies = replies[-scan_count:]
+
+                # Now scan the new replies.
+                for reply in new_replies:
+                    links_in_reply = reply.select('div.th-contents > a.link')
+                    if links_in_reply:  # Link(s) present in the reply
+                        # Retrieve the reply information.
+                        reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
+                        reply_no = int(reply_no_str.strip().replace('#', ''))
+                        log(compose_reply_report(replies_soup, thread_url, reply, reply_no))
+                        for link in links_in_reply:
+                            source_url = link['href']
+                            downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
             except Exception as scan_exception:
-                log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
-    except Exception as scan_exception:
-        log('Error: Cannot scan %i(%s).\t(%s)\n[Traceback]\n%s' %
-            (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
+                log('Error: Cannot scan %i(%s).\t(%s)\n[Traceback]\n%s' %
+                    (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
+                try:
+                    replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
+                    log(replies_err_soup.prettify())
+                except Exception as scan_exception:
+                    log('Error: Failed to load page source %s(%s).\t(%s)\n[Traceback]\n%s' %
+                        (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
+    except Exception as reply_exception:
+        exception_last_line = str(reply_exception).splitlines()[-1]
+        log('Error: Reply scanning failed on %i(%s).\t(%s)\n[Traceback]\n%s' %
+            (thread_no, exception_last_line, __get_time_str(), traceback.format_exc()))
         try:
             replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
-            log(replies_err_soup.prettify())
+            log('Error: html structure\n' + replies_err_soup.prettify())
         except Exception as scan_exception:
-            log('Error: Failed to load page source %s(%s).\t(%s)\n[Traceback]\n%s' %
-                (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
+            log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
 
 
-def compose_reply_report(reply):
+def compose_reply_report(soup, thread_url, reply, reply_no=1) -> str:
+    double_line = '===================='
+    dashed_line = '--------------------'
+    thread_title = soup.select_one('div.thread-info > h3.title').next_element
+    report = '\n' + double_line + '\n' + \
+             '<%s>  #%d\n' % (thread_title, reply_no) + \
+             __compose_content_report(reply) + '\n' + \
+             '(%s)\n' % thread_url + \
+             dashed_line
+    return report
+
+
+def __compose_content_report(reply):
     message = ""
     for content in reply.select_one('div.th-contents').contents:
         if isinstance(content, bs4.element.Tag):  # The content has a substructure.
@@ -191,9 +198,9 @@ def scan_threads(soup) -> int:
 
             # Check if the count has been increased.
             # If so, scan to check if there are links.
-            reply_count_to_scan = thread_db.get_reply_count_not_scanned(thread_id, count)
+            reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
             if reply_count_to_scan > 0:
-                scan_replies(thread_id, reply_count_to_scan)
+                scan_replies(thread_id, reply_count_to_scan, is_new_thread)
                 sum_reply_count_to_scan += reply_count_to_scan
     return sum_reply_count_to_scan
 

@@ -37,14 +37,16 @@ class ThreadDatabase:
         cursor.close()
 
     # Compare the current number of replies with the last.
-    def get_reply_count_not_scanned(self, thread_id: int, current_count: int) -> int:
+    def get_reply_count_not_scanned(self, thread_id: int, current_count: int) -> ():
+        new_thread = False
         last_count = self.__get_reply_count(thread_id)
 
         if last_count == 0:
             self.insert_thread(thread_id, current_count)
+            new_thread = True
         else:
             self.update_thread(thread_id, current_count)
-        return current_count - last_count
+        return (current_count - last_count), new_thread
 
     def insert_thread(self, thread_id: int, count: int):
         cursor = self.database.cursor()
