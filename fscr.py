@@ -57,6 +57,9 @@ PAUSE_MULTIPLIER_MIN = 1.0
 sum_new_reply_count_last_time = 0
 last_pause = 0
 
+# BeautifulSoup parsing format
+html_parser = 'html.parser'
+
 
 def log(message: str):
     with open(LOG_PATH, 'a') as f:
@@ -78,7 +81,7 @@ def scan_replies(thread_no: int, scan_count: int):
             wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply',)))
 
             # Get the thread list and the scanning targets(the new replies)
-            replies_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            replies_soup = BeautifulSoup(browser.page_source, html_parser)
             replies = replies_soup.select('div.thread-reply')
 
             if not replies or len(replies) < scan_count:  # The #1 needs scanning.
@@ -122,24 +125,22 @@ def scan_replies(thread_no: int, scan_count: int):
                         downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
         except Exception as reply_exception:
             exception_last_line = str(reply_exception).splitlines()[-1]
-            print('Warning: Reply scanning failed on %i(%s).' % (thread_no, exception_last_line))
+            log('Error: Reply scanning failed on %i(%s).\t(%s)\n[Traceback]\n%s' %
+                (thread_no, exception_last_line, __get_time_str(), traceback.format_exc()))
             try:
-                replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
-                try:
-                    if str(replies_err_soup.find('span', {'class': 'info-txt reply-count'}).contents[0]).strip() != '1':
-                        # if 1: No replies present (likely te be "start thread" exception)
-                        log('Error: html structure\n' + replies_err_soup.prettify())
-                except Exception as reply_count_exception:
-                    log('Error: reply count not available(%s).\t(%s)' % (reply_count_exception, __get_time_str()))
+                replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
+                log('Error: html structure\n' + replies_err_soup.prettify())
             except Exception as scan_exception:
                 log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
     except Exception as scan_exception:
-        log('Error: Cannot scan %i(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
+        log('Error: Cannot scan %i(%s).\t(%s)\n[Traceback]\n%s' %
+            (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
         try:
-            replies_err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
             log(replies_err_soup.prettify())
         except Exception as scan_exception:
-            log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
+            log('Error: Failed to load page source %s(%s).\t(%s)\n[Traceback]\n%s' %
+                (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
 
 
 def compose_reply_report(reply):
@@ -247,7 +248,7 @@ while True:
             # Get the thread list.
             browser.get(ROOT_DOMAIN + CAUTION_PATH)
             wait.until(expected_conditions.presence_of_all_elements_located((By.CLASS_NAME, 'thread-list-item')))
-            threads_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            threads_soup = BeautifulSoup(browser.page_source, html_parser)
 
             # Scan thread list and accumulate the number of new replies.
             sum_new_reply_count += scan_threads(threads_soup)
@@ -304,7 +305,7 @@ while True:
         log('Error: Cannot retrieve thread list(%s).\t(%s)\n[Traceback]\n%s' %
             (main_loop_exception, __get_time_str(), traceback.format_exc()))
         try:
-            err_soup = BeautifulSoup(browser.page_source, 'html.parser')
+            err_soup = BeautifulSoup(browser.page_source, html_parser)
             side_pane_elements = err_soup.select('div.user-info > a.btn')
             for element in side_pane_elements:
                 if element['href'] == '/login':
