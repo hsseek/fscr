@@ -76,22 +76,22 @@ def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
         # Open the page to scan
         thread_url = ROOT_DOMAIN + CAUTION_PATH + "/" + str(thread_no)
         browser.get(thread_url)
-        wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'th-contents')))
 
         is_scan_head_only = True if scan_count == 1 and is_new_thread else False
         if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
+            wait.until(expected_conditions.visibility_of_element_located((By.CLASS_NAME, 'th-contents')))
             replies_soup = BeautifulSoup(browser.page_source, html_parser)
             head = replies_soup.select_one('div.thread-first-reply')
             links_in_head = head.select('a.link')
             if links_in_head:  # Link(s) present in the head
-                log(compose_reply_report(replies_soup, thread_url, head))
+                log(compose_reply_report(replies_soup, thread_url, head, 1))
                 for link in links_in_head:
                     source_url = link['href']
                     downloader.download(source_url, thread_no, 1)
             return
         else:  # Need to scan replies as well.
             try:
-                wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'thread-reply')))
+                wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, 'thread-reply')))
                 # Get the thread list and the scanning targets(the new replies)
                 replies_soup = BeautifulSoup(browser.page_source, html_parser)
                 replies = replies_soup.select('div.thread-reply')
@@ -100,7 +100,7 @@ def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
                     head = replies_soup.select_one('div.thread-first-reply')
                     links_in_head = head.select('a.link')
                     if links_in_head:  # Link(s) present in the head
-                        log(compose_reply_report(replies_soup, thread_url, head))
+                        log(compose_reply_report(replies_soup, thread_url, head, 1))
                         for link in links_in_head:
                             source_url = link['href']
                             downloader.download(source_url, thread_no, 1)
@@ -138,7 +138,7 @@ def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
             log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
 
 
-def compose_reply_report(soup, thread_url, reply, reply_no=1) -> str:
+def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
     double_line = '===================='
     dashed_line = '--------------------'
     thread_title = soup.select_one('div.thread-info > h3.title').next_element
@@ -316,7 +316,7 @@ while True:
             side_pane_elements = err_soup.select('div.user-info > a.btn')
             for element in side_pane_elements:
                 if element['href'] == '/login':
-                    cool_down = 300 * random.uniform(1, 2)
+                    cool_down = fluctuate(340)
                     print('The session requires login. Retry after %ds.' % int(cool_down))
                     # Possibly banned for abuse. Cool down.
                     time.sleep(cool_down)
