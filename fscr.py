@@ -62,7 +62,7 @@ html_parser = 'html.parser'
 
 
 def log(message: str):
-    with open(LOG_PATH, 'a') as f:
+    with open(LOG_PATH + 'log.pv', 'a') as f:
         f.write(message + '\n')
     print(message)
 
@@ -187,14 +187,27 @@ def scan_threads(soup) -> int:
         # Don't bother if the thread has been finished.
         if thread_id not in finished_thread_ids:
             row_count = thread.select_one('span.count').string
-            if row_count == '완결':
+            if str(row_count).isdigit():
+                count = int(row_count)  # A natural number (타래 세울 때 1)
+            else:
                 thread_title = thread.select_one('span.title').string
-                log('\n<%s> reached the limit(%s).' % (thread_title, ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)))
-                count = int(300)
+                thread_url = ROOT_DOMAIN + CAUTION_PATH + '/' + str(thread_id)
                 # Add to finished list.
                 finished_thread_ids.append(thread_id)
-            else:
-                count = int(row_count)  # A natural number (타래 세울 때 1)
+                if row_count == '완결':
+                    log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
+                    count = int(300)
+                elif row_count == '닫힘':
+                    thread_title = thread.select_one('span.title').string
+                    log('\n<%s> closed.(%s)\t(%s)' % (thread_title, thread_url, __get_time_str()))
+                    # Try full scanning and copy the page source.
+                    count = 24
+                    copy_replies(thread_url)
+                else:
+                    log('Error: Unexpected parameter for reply count(%s) for <%s>.\t(%s)\n(%s)' %
+                        (row_count, thread_title, __get_time_str(), thread_url))
+                    count = 24
+                    copy_replies(thread_url)
 
             # Check if the count has been increased.
             # If so, scan to check if there are links.
@@ -202,11 +215,45 @@ def scan_threads(soup) -> int:
             if reply_count_to_scan > 0:
                 scan_replies(thread_id, reply_count_to_scan, is_new_thread)
                 sum_reply_count_to_scan += reply_count_to_scan
+
     return sum_reply_count_to_scan
+
+
+def copy_replies(url: str):
+    path = read_from_file(LOG_PATH) + '/' + __split_on_last_pattern(url, '/')[1] + '.pv'  # log_path/101020.pv
+
+    browser.get(url)
+    wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, 'thread-reply')))
+    # Get the thread list and the scanning targets(the new replies)
+    replies_soup = BeautifulSoup(browser.page_source, html_parser)
+    replies = replies_soup.select('div.thread-reply')
+
+    thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
+    with open(path, 'a') as f:
+        f.write('<%s>\n\n' % thread_title)
+
+    # Now scan the replies.
+    for reply in replies:
+        # Retrieve the reply information.
+        reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
+        reply_no = int(reply_no_str.strip().replace('#', ''))
+        dashed_line = '--------------------'
+        reply_content = '#%d\n' % reply_no + \
+                        __compose_content_report(reply) + '\n' + \
+                        dashed_line
+        with open(path, 'a') as f:
+            f.write(reply_content + '\n')
 
 
 def __get_time_str():
     return str(datetime.datetime.now()).split('.')[0]
+
+
+def __split_on_last_pattern(string: str, pattern: str) -> ():
+    last_piece = string.split(pattern)[-1]  # domain.com/image.jpg -> jpg
+    leading_chunks = string.split(pattern)[:-1]  # [domain, com/image]
+    leading_piece = pattern.join(leading_chunks)  # domain.com/image
+    return leading_piece, last_piece  # [domain.com/image, jpg]
 
 
 # The main loop

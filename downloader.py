@@ -28,7 +28,7 @@ DUMP_PATH = read_from_file('DUMP_PATH.pv')
 
 
 def log(message: str):
-    with open(LOG_PATH, 'a') as f:
+    with open(LOG_PATH + 'log.pv', 'a') as f:
         f.write(message + '\n')
     print(message)
 
