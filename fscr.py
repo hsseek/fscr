@@ -61,8 +61,8 @@ last_pause = 0
 html_parser = 'html.parser'
 
 
-def log(message: str):
-    with open(LOG_PATH + 'log.pv', 'a') as f:
+def log(message: str, filename='log.pv'):
+    with open(LOG_PATH + filename, 'a') as f:
         f.write(message + '\n')
     print(message)
 
@@ -220,29 +220,26 @@ def scan_threads(soup) -> int:
 
 
 def copy_replies(url: str):
-    path = read_from_file(LOG_PATH) + '/' + __split_on_last_pattern(url, '/')[1] + '.pv'  # log_path/101020.pv
-
     browser.get(url)
     wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, 'thread-reply')))
     # Get the thread list and the scanning targets(the new replies)
     replies_soup = BeautifulSoup(browser.page_source, html_parser)
     replies = replies_soup.select('div.thread-reply')
 
+    # Compose the report.
     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-    with open(path, 'a') as f:
-        f.write('<%s>\n\n' % thread_title)
-
+    report_head = '<%s>\n\n' % thread_title
+    report_body = ''
     # Now scan the replies.
     for reply in replies:
         # Retrieve the reply information.
         reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
         reply_no = int(reply_no_str.strip().replace('#', ''))
         dashed_line = '--------------------'
-        reply_content = '#%d\n' % reply_no + \
-                        __compose_content_report(reply) + '\n' + \
-                        dashed_line
-        with open(path, 'a') as f:
-            f.write(reply_content + '\n')
+        report_body += '\n#%d%s\n' % (reply_no, dashed_line) + __compose_content_report(reply) + '\n'
+    # Log to a file.
+    file_name = __split_on_last_pattern(url, '/')[1] + '.pv'  # log_path/101020.pv
+    log(report_head + report_body, file_name)
 
 
 def __get_time_str():
