@@ -27,8 +27,8 @@ DESTINATION_PATH = read_from_file('download_destination_path.pv')
 DUMP_PATH = read_from_file('DUMP_PATH.pv')
 
 
-def log(message: str):
-    with open(LOG_PATH + 'log.pv', 'a') as f:
+def log(message: str, filename='log'):
+    with open(LOG_PATH + filename + '.pv', 'a') as f:
         f.write(message + '\n')
     print(message)
 
@@ -172,7 +172,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                 log('Error: Cannot download %s quoted in %s #%s.\t(%s)'
                     % (int_index, thread_no, reply_no, __get_time_str()))
             else:
-                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
+                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
         else:  # <link> tag present
             target_url = target_tag['href']  # url of the file to download
             target_extension = target_url.split('.')[-1]
@@ -237,14 +237,15 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                 log('Error: Cannot locate the download button(삭제하시겠습니까?).\t(%s)' % __get_time_str())
             else:
                 log('Error: Cannot locate the download button.\t(%s)' % __get_time_str())
-                log(err_soup.prettify())
+                log('Error: Cannot locate the download button.\n[Page source]\n' + err_soup.prettify(), str(thread_no))
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
-            log('Error: Cannot retrieve tmpstorage source(%s).\n[Traceback]\n%s' %
-                (tmpstorage_exception, traceback.format_exc()))
+            log('Error: Cannot retrieve tmpstorage source(%s).\t(%s)' %
+                (tmpstorage_exception, __get_time_str()))
+            log(traceback.format_exc(), str(tmpstorage_exception))
             err_soup = BeautifulSoup(browser.page_source, html_parser)
-            log(err_soup.prettify())
+            log('\n\n[Page source]\n' + err_soup.prettify(), str(tmpstorage_exception))
         finally:
             browser.quit()
 
@@ -257,7 +258,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
                 log('Error: Cannot download imgbb link quoted in %s #%s.\t(%s)'
                     % (thread_no, reply_no, __get_time_str()))
             else:
-                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify())
+                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
         else:  # The image link tag present
             # Try retrieving the link.
             target_url = target_tag['src']

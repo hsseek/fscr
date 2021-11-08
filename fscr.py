@@ -61,8 +61,8 @@ last_pause = 0
 html_parser = 'html.parser'
 
 
-def log(message: str, filename='log.pv'):
-    with open(LOG_PATH + filename, 'a') as f:
+def log(message: str, filename='log'):
+    with open(LOG_PATH + filename + '.pv', 'a') as f:
         f.write(message + '\n')
     print(message)
 
@@ -119,21 +119,24 @@ def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
                             source_url = link['href']
                             downloader.download(source_url, thread_no, int(reply_no))  # Now refer the source page.
             except Exception as scan_exception:
-                log('Error: Cannot scan %i(%s).\t(%s)\n[Traceback]\n%s' %
-                    (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
+                log('Error: Cannot scan %i(%s).\t(%s)' %
+                    (thread_no, scan_exception, __get_time_str()))
+                log(traceback.format_exc(), str(scan_exception))
                 try:
                     replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
-                    log(replies_err_soup.prettify())
+                    log('\n\n[Page source]\n' + replies_err_soup.prettify(), str(scan_exception))
                 except Exception as scan_exception:
-                    log('Error: Failed to load page source %s(%s).\t(%s)\n[Traceback]\n%s' %
-                        (thread_no, scan_exception, __get_time_str(), traceback.format_exc()))
+                    log('Error: Failed to load page source %s(%s).\t(%s)' %
+                        (thread_no, scan_exception, __get_time_str()))
+                    log(traceback.format_exc(), str(scan_exception))
     except Exception as reply_exception:
         exception_last_line = str(reply_exception).splitlines()[-1]
-        log('Error: Reply scanning failed on %i(%s).\t(%s)\n[Traceback]\n%s' %
-            (thread_no, exception_last_line, __get_time_str(), traceback.format_exc()))
+        log('Error: Reply scanning failed on %i(%s).\t(%s)' %
+            (thread_no, exception_last_line, __get_time_str()))
+        log(traceback.format_exc(), str(reply_exception))
         try:
             replies_err_soup = BeautifulSoup(browser.page_source, html_parser)
-            log('Error: html structure\n' + replies_err_soup.prettify())
+            log('\n\n[Page source]\n' + replies_err_soup.prettify(), str(reply_exception))
         except Exception as scan_exception:
             log('Error: Failed to load page source %s(%s).\t(%s)' % (thread_no, scan_exception, __get_time_str()))
 
@@ -228,7 +231,7 @@ def copy_replies(url: str):
 
     # Compose the report.
     thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-    report_head = '<%s>\n\n' % thread_title
+    report_head = '<%s>\n' % thread_title
     report_body = ''
     # Now scan the replies.
     for reply in replies:
@@ -348,13 +351,14 @@ while True:
 
     except selenium.common.exceptions.TimeoutException:
         log('Error: Timeout in %.1f min.\t(%s)' % ((__get_elapsed_sec(last_cycled_time) / 60), __get_time_str()))
-    except selenium.common.exceptions.WebDriverException:
-        log('Error: Cannot operate WebDriver(WebDriverException).\t(%s)\n%s' %
-            (__get_time_str(), traceback.format_exc()))
+    except selenium.common.exceptions.WebDriverException as e:
+        log('Error: Cannot operate WebDriver(WebDriverException).\t(%s)' % __get_time_str())
+        log(traceback.format_exc(), str(e))
         time.sleep(fluctuate(210))  # Assuming the server is not operating.
     except Exception as main_loop_exception:
-        log('Error: Cannot retrieve thread list(%s).\t(%s)\n[Traceback]\n%s' %
-            (main_loop_exception, __get_time_str(), traceback.format_exc()))
+        log('Error: Cannot retrieve thread list(%s).\t(%s)' %
+            (main_loop_exception, __get_time_str()))
+        log(traceback.format_exc(), str(main_loop_exception))
         try:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             side_pane_elements = err_soup.select('div.user-info > a.btn')
@@ -366,7 +370,7 @@ while True:
                     time.sleep(cool_down)
                     break
                 else:
-                    log(err_soup.prettify())
+                    log('\n\n[Page source]\n' + err_soup.prettify(), str(main_loop_exception))
         except Exception as e:
             log('Error: Failed to thread list page source(%s)' % e)
         finally:
