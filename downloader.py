@@ -1,4 +1,4 @@
-import datetime
+import common
 import glob
 import os
 import traceback
@@ -16,29 +16,23 @@ from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 
 
-def read_from_file(path: str):
-    with open(path) as f:
-        return f.read().strip('\n')
+class Constants:
+    LOG_PATH = common.read_from_file('LOG_PATH.pv')
+    DRIVER_PATH = common.read_from_file('DRIVER_PATH.pv')
+    DESTINATION_PATH = common.read_from_file('download_destination_path.pv')
+    DUMP_PATH = common.read_from_file('DUMP_PATH.pv')
 
 
-LOG_PATH = read_from_file('LOG_PATH.pv')
-DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
-DESTINATION_PATH = read_from_file('download_destination_path.pv')
-DUMP_PATH = read_from_file('DUMP_PATH.pv')
-
-
-def log(message: str, filename='log'):
-    with open(LOG_PATH + filename + '.pv', 'a') as f:
-        f.write(message + '\n')
-    print(message)
+def log(message: str, file_name: str = 'log.pv', has_tst: bool = False):
+    common.log(message, log_path=Constants.LOG_PATH + file_name, has_tst=has_tst)
 
 
 def initiate_browser():
     # A chrome web driver with headless option
-    service = Service(DRIVER_PATH)
+    service = Service(Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_experimental_option("prefs", {
-        "download.default_directory": DESTINATION_PATH,
+        "download.default_directory": Constants.DESTINATION_PATH,
         "download.prompt_for_download": False
     })
     options.add_argument('headless')
@@ -50,7 +44,7 @@ def initiate_browser():
 
 def __get_url_index(url: str) -> ():
     url_index = []  # for example, url_index = [3, 5, 1, 9] (a list of int)
-    str_index = __split_on_last_pattern(url, '/')[-1]  # 'a3Fx' from 'https://domain.com/a3Fx'
+    str_index = common.split_on_last_pattern(url, '/')[-1]  # 'a3Fx' from 'https://domain.com/a3Fx'
     with open('SEQUENCE.pv', 'r') as file:
         sequence = file.read().split('\n')
 
@@ -69,20 +63,9 @@ def __format_url_index(url_index: ()) -> str:
     return formatted_index  # '19092307'
 
 
-def __split_on_last_pattern(string: str, pattern: str) -> ():
-    last_piece = string.split(pattern)[-1]  # domain.com/image.jpg -> jpg
-    leading_chunks = string.split(pattern)[:-1]  # [domain, com/image]
-    leading_piece = pattern.join(leading_chunks)  # domain.com/image
-    return leading_piece, last_piece  # [domain.com/image, jpg]
-
-
 def __format_file_name(file_name: str) -> str:
-    chunks = __split_on_last_pattern(file_name, '.')
+    chunks = common.split_on_last_pattern(file_name, '.')
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
-
-
-def __get_time_str():
-    return str(datetime.datetime.now()).split('.')[0]
 
 
 def wait_for_downloading(file_name_tag):
@@ -95,14 +78,14 @@ def wait_for_downloading(file_name_tag):
     if file_name_tag:  # The file name has been specified.
         while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
             file_name = file_name_tag.string
-            if os.path.exists(DESTINATION_PATH + file_name + temp_extension):
+            if os.path.exists(Constants.DESTINATION_PATH + file_name + temp_extension):
                 is_downloading = True
                 break
             seconds += check_interval
             time.sleep(check_interval)
     else:  # Search the file.
         while not is_downloading and seconds < 3:  # Loop up to 5 seconds to locate downloading file.
-            for file in os.listdir(DESTINATION_PATH):
+            for file in os.listdir(Constants.DESTINATION_PATH):
                 if file.endswith(temp_extension):
                     # A temporary chrome downloading file detected.
                     is_downloading = True
@@ -115,8 +98,8 @@ def wait_for_downloading(file_name_tag):
         last_file_size = 0
         # TODO: Use async thread.
         temp_file_name = file_name + temp_extension
-        while is_downloading and os.path.exists(DESTINATION_PATH + temp_file_name) and seconds < 25:
-            current_file_size = os.path.getsize(DESTINATION_PATH + temp_file_name)
+        while is_downloading and os.path.exists(Constants.DESTINATION_PATH + temp_file_name) and seconds < 25:
+            current_file_size = os.path.getsize(Constants.DESTINATION_PATH + temp_file_name)
             if current_file_size == last_file_size:
                 # Download finished, while the file name hasn't been properly changed.
                 # (Unless downloading speed is slower than 1 byte/sec.)
@@ -125,18 +108,19 @@ def wait_for_downloading(file_name_tag):
             time.sleep(check_interval)
             seconds += check_interval
         # Rename temporary files: Download not finished, duplicated, ...
-        for file in os.listdir(DESTINATION_PATH):
+        for file in os.listdir(Constants.DESTINATION_PATH):
             if file.endswith(temp_extension):
                 if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
-                    os.remove(DESTINATION_PATH + file)
+                    os.remove(Constants.DESTINATION_PATH + file)
                 else:
-                    os.rename(DESTINATION_PATH + file, DESTINATION_PATH + file.replace(temp_extension, ''))
+                    os.rename(Constants.DESTINATION_PATH + file,
+                              Constants.DESTINATION_PATH + file.replace(temp_extension, ''))
     return file_name
 
 
 def download(source_url: str, thread_no: int, reply_no: int):
-    if not os.path.exists(DESTINATION_PATH):
-        os.makedirs(DESTINATION_PATH)  # create folder if it does not exist
+    if not os.path.exists(Constants.DESTINATION_PATH):
+        os.makedirs(Constants.DESTINATION_PATH)  # create folder if it does not exist
 
     # Set the download target.
     try:
@@ -145,16 +129,16 @@ def download(source_url: str, thread_no: int, reply_no: int):
             file_url = target[0]  # The url on the server
             file_name = target[1]  # A file name to store in local
             request = requests.get(file_url, stream=True)
-            file_path = os.path.join(DESTINATION_PATH, file_name)
+            file_path = os.path.join(Constants.DESTINATION_PATH, file_name)
             with open(file_path, 'wb') as f:
                 for chunk in request.iter_content(chunk_size=1024 * 8):
                     if chunk:
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
-            log("%s\t(%s)" % (DUMP_PATH + file_name, __get_time_str()))
+            log("%s" % Constants.DUMP_PATH + file_name, has_tst=True)
     except Exception as download_exception:
-        log("Error: Download failed.(%s)\t(%s)" % (download_exception, __get_time_str()))
+        log("Error: Download failed.(%s)\t(%s)" % download_exception, has_tst=True)
 
 
 def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> ():
@@ -169,15 +153,14 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: Cannot download %s quoted in %s #%s.\t(%s)'
-                    % (int_index, thread_no, reply_no, __get_time_str()))
+                log('Error: Cannot download %s quoted in %s #%s.' % (int_index, thread_no, reply_no), has_tst=True)
             else:
-                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
+                log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
             target_url = target_tag['href']  # url of the file to download
             target_extension = target_url.split('.')[-1]
             if target_extension == 'dn':
-                log('삭제된 이미지입니다.(image.dn)\t(%s)' % __get_time_str())  # Likely to be a file in a wrong format
+                log('삭제된 이미지입니다.(image.dn)', has_tst=True)  # Likely to be a file in a wrong format
             else:
                 local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, target_extension)
                 return target_url, local_name
@@ -221,31 +204,31 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
             if not file_name:
                 # Get the second latest file (the first latest is always the log file).
-                second_latest_file = sorted(glob.iglob(DESTINATION_PATH + '*'), key=os.path.getctime)[-2]
-                file_name = __split_on_last_pattern(second_latest_file, '/')[-1]
+                second_latest_file = sorted(glob.iglob(Constants.DESTINATION_PATH + '*'), key=os.path.getctime)[-2]
+                file_name = common.split_on_last_pattern(second_latest_file, '/')[-1]
                 log('Error: Cannot retrieve tmpstorage file name, assuming %s as the file.' % file_name)
             local_name = '%s-%s-%03d-%s' % (
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
-            os.rename(DESTINATION_PATH + file_name,
-                      DESTINATION_PATH + local_name)
-            log("%s.\t(%s)" % (DUMP_PATH + local_name, __get_time_str()))
+            os.rename(Constants.DESTINATION_PATH + file_name,
+                      Constants.DESTINATION_PATH + local_name)
+            log("%s" % Constants.DUMP_PATH + local_name, has_tst=True)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
-                log('Error: The link has been expired.\t(%s)' % __get_time_str())
+                log('Error: The link has been expired.', has_tst=True)
             elif err_soup.select_one('div#delete > p.delete'):
-                log('Error: Cannot locate the download button(삭제하시겠습니까?).\t(%s)' % __get_time_str())
+                log('Error: Cannot locate the download button(삭제하시겠습니까?).', has_tst=True)
             else:
-                log('Error: Cannot locate the download button.\t(%s)' % __get_time_str())
+                log('Error: Cannot locate the download button.', has_tst=True)
                 log('Error: Cannot locate the download button.\n[Page source]\n' + err_soup.prettify(), str(thread_no))
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
-            log('Error: Cannot retrieve tmpstorage source(%s).\t(%s)' %
-                (tmpstorage_exception, __get_time_str()))
-            log(traceback.format_exc(), str(tmpstorage_exception))
+            log('Error: Cannot retrieve tmpstorage source(%s).' % tmpstorage_exception, has_tst=True)
+            log('Exception: %s\n\n[Traceback]\n%s' %
+                (tmpstorage_exception, traceback.format_exc()), 'tmpstorage_exception.pv')
             err_soup = BeautifulSoup(browser.page_source, html_parser)
-            log('\n\n[Page source]\n' + err_soup.prettify(), str(tmpstorage_exception))
+            log('\n\n[Page source]\n' + err_soup.prettify(), 'tmpstorage_exception')
         finally:
             browser.quit()
 
@@ -255,14 +238,13 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
             if soup.select_one('body#404'):
-                log('Error: Cannot download imgbb link quoted in %s #%s.\t(%s)'
-                    % (thread_no, reply_no, __get_time_str()))
+                log('Error: Cannot download imgbb link quoted in %s #%s.' % (thread_no, reply_no), has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
         else:  # The image link tag present
             # Try retrieving the link.
             target_url = target_tag['src']
-            file_name = __split_on_last_pattern(target_url, '/')[-1]
+            file_name = common.split_on_last_pattern(target_url, '/')[-1]
 
             # Try retrieving the views.
             view_tag = soup.select_one('div.content-width > div.header > div.header-content-right > div')
