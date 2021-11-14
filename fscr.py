@@ -39,8 +39,7 @@ class Constants:
     MAX_SCANNING_COUNT_ON_SESSION = 1000
     PAUSE_IDLE = 600.0
     PAUSE_POWER = 3.5
-    PAUSE_MULTIPLIER_MAX = 2.15
-    PAUSE_MULTIPLIER_MIN = 1.0
+    PAUSE_MULTIPLIER = 2
 
 
 def initiate_browser():
@@ -159,10 +158,11 @@ def __compose_content_report(reply):
 def fluctuate(value):
     # Large values: The random multiplier dominant
     # Small values: The random increment dominant
-    return value * random.uniform(1.0, 1.5) + random.uniform(1.2, 3.6)
+    return value * random.uniform(1.0, 1.5) + random.uniform(0.6, 3.6)
 
 
-def get_proper_pause(new_reply_count: int):
+# A proper pause in seconds based on the count of new replies
+def get_absolute_pause(new_reply_count: int):
     return Constants.PAUSE_IDLE / ((new_reply_count ** Constants.PAUSE_POWER) + 1)
 
 
@@ -292,9 +292,9 @@ while True:
             elapsed_for_scanning = common.get_elapsed_sec(scan_start_time)
 
             # Impose a proper pause.
-            proposed_pause = last_pause * random.uniform(Constants.PAUSE_MULTIPLIER_MIN, Constants.PAUSE_MULTIPLIER_MAX)
-            pause = min(proposed_pause, get_proper_pause(sum_new_reply_count))
-            session_pause = pause
+            recurrence_pause = last_pause * Constants.PAUSE_MULTIPLIER
+            pause = min(recurrence_pause, get_absolute_pause(sum_new_reply_count))
+            session_pause = pause  # Update to use it out from the loop.
             fluctuated_pause = fluctuate(pause)
 
             pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
