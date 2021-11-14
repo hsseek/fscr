@@ -158,7 +158,7 @@ def __compose_content_report(reply):
 def fluctuate(value):
     # Large values: The random multiplier dominant
     # Small values: The random increment dominant
-    return value * random.uniform(1.0, 1.5) + random.uniform(0.6, 3.6)
+    return value * random.uniform(1.0, 1.25) + random.uniform(0.6, 2.4)
 
 
 # A proper pause in seconds based on the count of new replies
@@ -301,7 +301,7 @@ while True:
             pause_status_str += '\t' if pause > 100 else ' \t'  # For visual alignment
 
             current_session_span = elapsed_for_scanning + last_pause
-            print('%.1f(%.1f)\t' % (current_session_span, elapsed_for_scanning)  # Actual pause(Time spent on scanning)
+            print('%1.f = %.1f + (%1.f) \t' % (current_session_span, elapsed_for_scanning, last_pause)
                   + str(sum_new_reply_count) + ' new\t'
                   + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
                   + '-> %s' % pause_status_str
