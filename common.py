@@ -27,3 +27,14 @@ def log(message: str, log_path: str, has_tst: bool = False):
             message += '\t(%s)' % get_time_str()
         f.write(message + '\n')
     print(message)
+
+
+class Constants:
+    DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
+    ROOT_DOMAIN = read_from_file('ROOT_DOMAIN.pv')
+    LOGIN_PATH = read_from_file('LOGIN_PATH.pv')
+    LOG_PATH = read_from_file('LOG_PATH.pv')
+    CAUTION_PATH = '/caution'
+
+    # BeautifulSoup parsing format
+    HTML_PARSER = 'html.parser'

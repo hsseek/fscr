@@ -17,19 +17,18 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 
 class Constants:
-    LOG_PATH = common.read_from_file('LOG_PATH.pv')
-    DRIVER_PATH = common.read_from_file('DRIVER_PATH.pv')
+    DL_LOG_FILE = 'dl-log.pv'
     DESTINATION_PATH = common.read_from_file('download_destination_path.pv')
     DUMP_PATH = common.read_from_file('DUMP_PATH.pv')
 
 
 def log(message: str, file_name: str = 'log.pv', has_tst: bool = False):
-    common.log(message, log_path=Constants.LOG_PATH + file_name, has_tst=has_tst)
+    common.log(message, log_path=common.Constants.LOG_PATH + file_name, has_tst=has_tst)
 
 
 def initiate_browser():
     # A chrome web driver with headless option
-    service = Service(Constants.DRIVER_PATH)
+    service = Service(common.Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_experimental_option("prefs", {
         "download.default_directory": Constants.DESTINATION_PATH,
@@ -61,6 +60,11 @@ def __format_url_index(url_index: ()) -> str:
     for index in url_index:
         formatted_index += '%02d' % index
     return formatted_index  # '19092307'
+
+
+def __get_thread_url(thread_no):
+    thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_no)
+    return thread_url
 
 
 def __format_file_name(file_name: str) -> str:
@@ -118,13 +122,14 @@ def wait_for_downloading(file_name_tag):
     return file_name
 
 
-def download(source_url: str, thread_no: int, reply_no: int):
+def download(source_url: str, thread_no: int, reply_no: int, pause: float):
+    thread_url = __get_thread_url(thread_no)
     if not os.path.exists(Constants.DESTINATION_PATH):
         os.makedirs(Constants.DESTINATION_PATH)  # create folder if it does not exist
 
     # Set the download target.
     try:
-        target = __extract_download_target(source_url, thread_no, reply_no)
+        target = __extract_download_target(source_url, thread_no, reply_no, pause)
         if target is not None:  # If None, a respective error message has been issued in __extract method.
             file_url = target[0]  # The url on the server
             file_name = target[1]  # A file name to store in local
@@ -137,11 +142,14 @@ def download(source_url: str, thread_no: int, reply_no: int):
                         f.flush()
                         os.fsync(f.fileno())
             log("%s" % Constants.DUMP_PATH + file_name, has_tst=True)
+            log('%.1f ->\tDownloaded %s at #%d.\t(%s)' % (pause, source_url, reply_no, thread_url),
+                file_name=Constants.DL_LOG_FILE)
     except Exception as download_exception:
         log("Error: Download failed.(%s)\t(%s)" % download_exception, has_tst=True)
 
 
-def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> ():
+def __extract_download_target(page_url: str, thread_no: int, reply_no: int, pause: float) -> ():
+    thread_url = __get_thread_url(thread_no)
     domain = urlparse(page_url).netloc.replace('www', '')
     html_parser = 'html.parser'
     if domain == 'imgdb.in':
@@ -153,7 +161,9 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: Cannot download %s quoted in %s #%s.' % (int_index, thread_no, reply_no), has_tst=True)
+                log('Error: Cannot download %s quoted at #%s.' % (int_index, reply_no), has_tst=True)
+                log('%.1f ->\tCannot download %s quoted at #%s.\t(%s)' % (pause, int_index, reply_no, thread_url),
+                    file_name=Constants.DL_LOG_FILE)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
@@ -212,10 +222,14 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int) -> (
             os.rename(Constants.DESTINATION_PATH + file_name,
                       Constants.DESTINATION_PATH + local_name)
             log("%s" % Constants.DUMP_PATH + local_name, has_tst=True)
+            log('%.1f ->\tDownloaded a tmpstorage link.\t(%s)' % (pause, thread_url),
+                file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Error: The link has been expired.', has_tst=True)
+                log('%.1f ->\tA tmpstorage link has been expired.\t(%s)' % (pause, thread_no),
+                    file_name=Constants.DL_LOG_FILE)
             elif err_soup.select_one('div#delete > p.delete'):
                 log('Error: Cannot locate the download button(삭제하시겠습니까?).', has_tst=True)
             else:
