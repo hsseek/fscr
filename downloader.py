@@ -141,8 +141,12 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
-            log("%s" % Constants.DUMP_PATH + file_name, has_tst=True)
-            log('%.1f ->\tDownloaded %s at #%d.\t(%s)' % (pause, source_url, reply_no, thread_url),
+            global download_count
+            download_count += 1
+            log("#%d\t%s" % (download_count, Constants.DUMP_PATH + file_name), has_tst=True)
+            if download_count > 10000:
+                download_count = 0
+            log('[ V ] after %.1f" \t: Downloaded %s at #%d.\t(%s)' % (pause, source_url, reply_no, thread_url),
                 file_name=Constants.DL_LOG_FILE)
     except Exception as download_exception:
         log("Error: Download failed.(%s)\t(%s)" % download_exception, has_tst=True)
@@ -162,7 +166,8 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
                 log('Error: Cannot download %s quoted at #%s.' % (int_index, reply_no), has_tst=True)
-                log('%.1f ->\tCannot download %s quoted at #%s.\t(%s)' % (pause, int_index, reply_no, thread_url),
+                log('[ - ] after %.1f" \t: Cannot download %s quoted at #%s.\t(%s)'
+                    % (pause, int_index, reply_no, thread_url),
                     file_name=Constants.DL_LOG_FILE)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
@@ -221,14 +226,21 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
                 domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
             os.rename(Constants.DESTINATION_PATH + file_name,
                       Constants.DESTINATION_PATH + local_name)
-            log("%s" % Constants.DUMP_PATH + local_name, has_tst=True)
-            log('%.1f ->\tDownloaded a tmpstorage link.\t(%s)' % (pause, thread_url),
+
+            # Log the change.
+            global download_count
+            download_count += 1
+            log("#%d\t%s" % (download_count, Constants.DUMP_PATH + local_name), has_tst=True)
+            if download_count > 10000:
+                log('Download count reached 10,000. Reset it.')
+                download_count = 0
+            log('[ V ] after %.1f" \t: Downloaded a tmpstorage link.\t(%s)' % (pause, thread_url),
                 file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Error: The link has been expired.', has_tst=True)
-                log('%.1f ->\tA tmpstorage link has been expired.\t(%s)' % (pause, thread_no),
+                log('[ - ] after %.1f" \t: A tmpstorage link has been expired.\t(%s)' % (pause, thread_no),
                     file_name=Constants.DL_LOG_FILE)
             elif err_soup.select_one('div#delete > p.delete'):
                 log('Error: Cannot locate the download button(삭제하시겠습니까?).', has_tst=True)
@@ -276,3 +288,6 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
         log('%s quoted in %s.' % (page_url, thread_no))
     else:
         log('Error: Unknown source on %s.(%s)' % (thread_no, page_url))
+
+
+download_count = 0
