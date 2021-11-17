@@ -18,7 +18,7 @@ import downloader
 
 
 class Constants:
-    HTML_TIMEOUT = 5
+    HTML_TIMEOUT = 15
 
     # Credentials
     EMAIL = common.read_from_file('EMAIL.pv')
