@@ -62,11 +62,6 @@ def __format_url_index(url_index: ()) -> str:
     return formatted_index  # '19092307'
 
 
-def __get_thread_url(thread_no):
-    thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_no)
-    return thread_url
-
-
 def __format_file_name(file_name: str) -> str:
     chunks = common.split_on_last_pattern(file_name, '.')
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
@@ -123,7 +118,7 @@ def wait_for_downloading(file_name_tag):
 
 
 def download(source_url: str, thread_no: int, reply_no: int, pause: float):
-    thread_url = __get_thread_url(thread_no)
+    thread_url = common.get_thread_url(thread_no)
     if not os.path.exists(Constants.DESTINATION_PATH):
         os.makedirs(Constants.DESTINATION_PATH)  # create folder if it does not exist
 
@@ -153,7 +148,7 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
 
 
 def __extract_download_target(page_url: str, thread_no: int, reply_no: int, pause: float) -> ():
-    thread_url = __get_thread_url(thread_no)
+    thread_url = common.get_thread_url(thread_no)
     domain = urlparse(page_url).netloc.replace('www', '')
     html_parser = 'html.parser'
     if domain == 'imgdb.in':

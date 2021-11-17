@@ -21,6 +21,11 @@ def split_on_last_pattern(string: str, pattern: str) -> ():
     return leading_piece, last_piece  # [domain.com/image, jpg]
 
 
+def get_thread_url(thread_no):
+    thread_url = Constants.ROOT_DOMAIN + Constants.CAUTION_PATH + '/' + str(thread_no)
+    return thread_url
+
+
 def log(message: str, log_path: str, has_tst: bool = False):
     with open(log_path, 'a') as f:
         if has_tst:

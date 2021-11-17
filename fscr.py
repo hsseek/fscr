@@ -48,55 +48,53 @@ def log(message: str, file_name: str = 'log.pv', has_tst: bool = False):
     common.log(message, log_path=common.Constants.LOG_PATH + file_name, has_tst=has_tst)
 
 
-def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
-    try:
-        # Open the page to scan
-        thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + "/" + str(thread_no)
-        browser.get(thread_url)
-
-        is_scan_head_only = True if scan_count == 1 and is_new_thread else False
-        if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
-            wait.until(expected_conditions.visibility_of_element_located((By.CLASS_NAME, 'th-contents')))
-            replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-            scan_head(replies_soup, thread_no, thread_url)
-            return
-        else:  # Need to scan replies as well.
-            try:
-                wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, 'thread-reply')))
-                # Get the thread list and the scanning targets(the new replies)
-                replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-                replies = replies_soup.select('div.thread-reply')
-
-                if not replies or len(replies) < scan_count:  # The #1 needs scanning.
-                    scan_head(replies_soup, thread_no, thread_url)
-                    
-                # Now scan the new replies.
-                new_replies = replies[-scan_count:]
-                for reply in new_replies:
-                    scan_content(replies_soup, reply, thread_no, thread_url)
-            except Exception as scan_exception:
-                log('Error: Cannot scan %i(%s).' % (thread_no, scan_exception), has_tst=True)
-                log('Exception: %s\n[Traceback]\n%s' % (scan_exception, traceback.format_exc()),
-                    file_name='scan_exception.pv')
-                try:
-                    replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-                    log('\n\n[Page source]\n' + replies_err_soup.prettify(), str(scan_exception))
-                except Exception as scan_exception:
-                    log('Error: Failed to load page source %s(%s).' % (thread_no, scan_exception), has_tst=True)
-                    log('Exception: %s\n[Traceback]\n%s' % (scan_exception, traceback.format_exc()),
-                        file_name='scan_exception.pv')
-
-    except Exception as reply_exception:
-        exception_last_line = str(reply_exception).splitlines()[-1]
-        log('Error: Reply scanning failed on %i(%s).' % (thread_no, exception_last_line), has_tst=True)
-        log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
-            file_name='reply_exception.pv')
+def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, visibility_of_all: bool = False):
+    for i in range(max_trial):
         try:
-            replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-            log('\n\n[Page source]\n' + replies_err_soup.prettify(),
-                file_name='reply_exception.pv')
-        except Exception as scan_exception:
-            log('Error: Failed to load page source %s(%s)' % (thread_no, scan_exception), has_tst=True)
+            if visibility_of_all:
+                wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, class_name)))
+            else:
+                wait.until(expected_conditions.visibility_of_element_located((By.CLASS_NAME, class_name)))
+            return True
+        except selenium.common.exceptions.TimeoutException:
+            log('Warning: Timeout waiting %s' % class_name)
+            pass  # It just happens occasionally. Just try again.
+        except selenium.common.exceptions.NoSuchElementException:
+            log('Warning: Cannot locate %s.' % class_name)
+            pass
+    log('Error: Cannot locate %s even on %d trials.' % (class_name, max_trial))
+    return False
+
+
+def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
+    # Open the page to scan
+    thread_url = common.get_thread_url(thread_no)
+    browser.get(thread_url)
+
+    is_scan_head_only = True if scan_count == 1 and is_new_thread else False
+    if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
+        is_loaded = wait_and_retry(browser_wait, 'th-contents')
+        if not is_loaded:
+            log('Error: Cannot scan the only reply. (%s)' % thread_url)
+            return  # Cannot load the page, noting to do.
+        replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+        scan_head(replies_soup, thread_no, thread_url)
+    else:  # Need to scan replies as well.
+        is_loaded = wait_and_retry(browser_wait, 'thread-reply')
+        if not is_loaded:
+            log('Error: Cannot scan replies. (%s)' % thread_url)
+            return  # Cannot load the page, noting to do.
+        # Get the thread list and the scanning targets(the new replies)
+        replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+        replies = replies_soup.select('div.thread-reply')
+
+        if not replies or len(replies) < scan_count:  # The #1 needs scanning.
+            scan_head(replies_soup, thread_no, thread_url)
+
+        # Now scan the new replies.
+        new_replies = replies[-scan_count:]
+        for reply in new_replies:
+            scan_content(replies_soup, reply, thread_no, thread_url)
 
 
 def scan_head(replies_soup, thread_no, thread_url):
@@ -199,7 +197,19 @@ def scan_threads(soup) -> int:
             # If so, scan to check if there are links.
             reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
             if reply_count_to_scan > 0:
-                scan_replies(thread_id, reply_count_to_scan, is_new_thread)
+                try:
+                    scan_replies(thread_id, reply_count_to_scan, is_new_thread)
+                except Exception as reply_exception:
+                    exception_last_line = str(reply_exception).splitlines()[-1]
+                    log('Error: Reply scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
+                    log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
+                        file_name='reply_exception.pv')
+                    try:
+                        replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+                        log('\n\n[Page source]\n' + replies_err_soup.prettify(),
+                            file_name='reply_exception.pv')
+                    except Exception as scan_exception:
+                        log('Error: Failed to load page source %s(%s)' % (thread_id, scan_exception), has_tst=True)
                 sum_reply_count_to_scan += reply_count_to_scan
 
     return sum_reply_count_to_scan
@@ -207,7 +217,10 @@ def scan_threads(soup) -> int:
 
 def copy_replies(url: str):
     browser.get(url)
-    wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, 'thread-reply')))
+    is_loaded = wait_and_retry(browser_wait, 'thread-reply', visibility_of_all=True)
+    if not is_loaded:
+        log('Error: Cannot scan the replies while trying to copy them. (%s)' % url)
+        return  # Cannot load the page, noting to do.
     # Get the thread list and the scanning targets(the new replies)
     replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
     replies = replies_soup.select('div.thread-reply')
@@ -246,6 +259,7 @@ while True:
 
     # Initiate the browser
     browser = initiate_browser()
+    browser_wait = WebDriverWait(browser, Constants.HTML_TIMEOUT)
 
     # Online process starts.
     # Login and scan the thread list -> replies on each thread.
@@ -258,8 +272,8 @@ while True:
         browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[2]').send_keys(Constants.PW)
         browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[3]').click()
 
-        wait = WebDriverWait(browser, Constants.HTML_TIMEOUT)
-        wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
+        browser_wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
+        # If it raises an exception, nothing to do on the site. It will loop again after pause.
         log('Login successful.\t', has_tst=True)
 
         # A random cycle number n
@@ -278,7 +292,12 @@ while True:
 
             # Get the thread list.
             browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
-            wait.until(expected_conditions.presence_of_all_elements_located((By.CLASS_NAME, 'thread-list-item')))
+            is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', 3, visibility_of_all=True)
+            if not is_threads_loaded:
+                log('Error: Cannot load the thread list.')
+                # Cool down and loop again.
+                time.sleep(fluctuate(12))
+                continue
             threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
 
             # Scan thread list and accumulate the number of new replies.
