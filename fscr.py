@@ -174,16 +174,16 @@ def scan_threads(soup) -> int:
         if thread_id not in finished_thread_ids:
             row_count = thread.select_one('span.count').string
             if str(row_count).isdigit():
-                count = int(row_count)  # A natural number (타래 세울 때 1)
-            else:
+                count = int(row_count)  # Must be a natural number.
+            else:  # The count string is not digit. An irregular row.
                 thread_title = thread.select_one('span.title').string
                 thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
-                # Add to finished list.
+                # Add to finished list, as it does not need scanning further.
                 finished_thread_ids.append(thread_id)
                 if row_count == '완결':
                     log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
                     count = int(300)
-                elif row_count == '닫힘':
+                elif '닫힘' in row_count:
                     thread_title = thread.select_one('span.title').string
                     log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
                     # Try full scanning and copy the page source.
