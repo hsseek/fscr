@@ -144,7 +144,7 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
             log('[ V ] after %.1f" \t: Downloaded %s at #%d.\t(%s)' % (pause, source_url, reply_no, thread_url),
                 file_name=Constants.DL_LOG_FILE)
     except Exception as download_exception:
-        log("Error: Download failed.(%s)\t(%s)" % download_exception, has_tst=True)
+        log("Error: Download failed.(%s)" % download_exception, has_tst=True)
 
 
 def __extract_download_target(page_url: str, thread_no: int, reply_no: int, pause: float) -> ():
@@ -258,7 +258,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
         soup = BeautifulSoup(source, html_parser)
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
-            if soup.select_one('body#404'):
+            if soup.select_one('div.page-not-found'):
                 log('Error: Cannot download imgbb link quoted in %s #%s.' % (thread_no, reply_no), has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
