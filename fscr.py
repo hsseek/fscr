@@ -62,7 +62,8 @@ def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, vis
         except selenium.common.exceptions.NoSuchElementException:
             log('Warning: Cannot locate %s.' % class_name)
             pass
-    log('Error: Cannot locate %s even on %d trials.' % (class_name, max_trial))
+    log('Error: Cannot locate %s even on %d trials.\n\n[Page srouce]\n%s' % (class_name, max_trial, browser.page_source),
+        'retry-timeout.pv')
     return False
 
 
@@ -292,12 +293,12 @@ while True:
 
             # Get the thread list.
             browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
-            is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', 3, visibility_of_all=True)
+            is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
             if not is_threads_loaded:
                 log('Error: Cannot load the thread list.')
                 # Cool down and loop again.
                 time.sleep(fluctuate(12))
-                continue
+                break
             threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
 
             # Scan thread list and accumulate the number of new replies.
