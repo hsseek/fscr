@@ -229,13 +229,14 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
             if download_count > 10000:
                 log('Download count reached 10,000. Reset it.')
                 download_count = 0
-            log('[ V ] after %.1f" \t: Downloaded a tmpstorage link.\t(%s)' % (pause, thread_url),
+            log('[ V ] after %.1f" \t: Downloaded a tmpstorage link at #%d.\t(%s)' % (pause, reply_no, thread_url),
                 file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, html_parser)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Error: The link has been expired.', has_tst=True)
-                log('[ - ] after %.1f" \t: A tmpstorage link has been expired.\t(%s)' % (pause, thread_no),
+                log('[ - ] after %.1f" \t: A tmpstorage link has been expired at #%d.\t(%s)' %
+                    (pause, reply_no, thread_url),
                     file_name=Constants.DL_LOG_FILE)
             elif err_soup.select_one('div#delete > p.delete'):
                 log('Error: Cannot locate the download button(삭제하시겠습니까?).', has_tst=True)
