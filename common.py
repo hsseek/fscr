@@ -51,6 +51,7 @@ class Constants:
     ROOT_DOMAIN = read_from_file('ROOT_DOMAIN.pv')
     LOGIN_PATH = read_from_file('LOGIN_PATH.pv')
     LOG_PATH = read_from_file('LOG_PATH.pv')
+    LOG_FILE = 'log-fs.pv'
     CAUTION_PATH = '/caution'
 
     # BeautifulSoup parsing format

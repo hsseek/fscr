@@ -44,7 +44,7 @@ def initiate_browser():
     return driver
 
 
-def log(message: str, file_name: str = 'log.pv', has_tst: bool = False):
+def log(message: str, file_name: str = common.Constants.LOG_FILE, has_tst: bool = False):
     common.log(message, log_path=common.Constants.LOG_PATH + file_name, has_tst=has_tst)
 
 
@@ -254,7 +254,7 @@ def check_privilege(driver: webdriver.Chrome):
     if soup.select_one('.%s' % logged_in_class_name):
         return True
     else:
-        log('Warning: login required.\t', has_tst=True)
+        log('Warning: login required.', has_tst=True)
         driver.get(common.Constants.ROOT_DOMAIN + common.Constants.LOGIN_PATH)
         # Input the credentials and login
         try:
@@ -270,114 +270,116 @@ def check_privilege(driver: webdriver.Chrome):
             return False
 
 
-# The main loop
-while True:
-    session_start_time = datetime.datetime.now()  # The session timer
-    last_cycled_time = datetime.datetime.now()  # The scan cycling log
-    session_pause = 0.0  # Pause for the following session
+if __name__ == "__main__":
+    # The main loop
+    while True:
+        session_start_time = datetime.datetime.now()  # The session timer
+        last_cycled_time = datetime.datetime.now()  # The scan cycling log
+        session_pause = 0.0  # Pause for the following session
 
-    # A random cycle number n
-    sufficient_cycle_number = random.randint(
-        Constants.MIN_SCANNING_COUNT_ON_SESSION, Constants.MAX_SCANNING_COUNT_ON_SESSION)
-    current_cycle_number = 0
-    is_hot = True
+        # A random cycle number n
+        sufficient_cycle_number = random.randint(
+            Constants.MIN_SCANNING_COUNT_ON_SESSION, Constants.MAX_SCANNING_COUNT_ON_SESSION)
+        current_cycle_number = 0
+        is_hot = True
 
-    # Connect to the database
-    thread_db = sqlite.ThreadDatabase()
-    finished_thread_ids = thread_db.fetch_finished()
-    log('SQL connection opened.', has_tst=True)
-    thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
+        # Connect to the database
+        thread_db = sqlite.ThreadDatabase()
+        finished_thread_ids = thread_db.fetch_finished()
+        log('SQL connection opened.', has_tst=True)
+        thread_id = 0  # For debugging: if thread_id = 0, it has never been assigned.
 
-    # Initiate the browser
-    browser = initiate_browser()
-    browser_wait = WebDriverWait(browser, Constants.HTML_TIMEOUT)
+        # Initiate the browser
+        browser = initiate_browser()
+        browser_wait = WebDriverWait(browser, Constants.HTML_TIMEOUT)
 
-    # Online process starts.
-    # Login and scan the thread list -> replies on each thread.
-    try:
-        # Scan n times on the same login session.
-        while current_cycle_number < sufficient_cycle_number or is_hot:
-            is_privileged = check_privilege(browser)
-            if not is_privileged:
-                # Possibly banned for abuse. Cool down.
-                time.sleep(fluctuate(340))
-                continue
+        # Online process starts.
+        # Login and scan the thread list -> replies on each thread.
+        try:
+            # Scan n times on the same login session.
+            while current_cycle_number < sufficient_cycle_number or is_hot:
+                is_privileged = check_privilege(browser)
+                if not is_privileged:
+                    # Possibly banned for abuse. Cool down.
+                    time.sleep(fluctuate(340))
+                    continue
 
-            # Reset the reply count.
-            sum_new_reply_count = 0
+                # Reset the reply count.
+                sum_new_reply_count = 0
 
-            # Start the timer.
-            scan_start_time = datetime.datetime.now()
+                # Start the timer.
+                scan_start_time = datetime.datetime.now()
 
-            # Get the thread list.
-            browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
-            is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
-            if not is_threads_loaded:
-                log('Error: Cannot load the thread list.')
-                # Cool down and loop again.
-                time.sleep(fluctuate(12))
-                break
-            threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+                # Get the thread list.
+                browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
+                is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
+                if not is_threads_loaded:
+                    log('Error: Cannot load the thread list.')
+                    # Cool down and loop again.
+                    time.sleep(fluctuate(12))
+                    break
+                threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
 
-            # Scan thread list and accumulate the number of new replies.
-            sum_new_reply_count += scan_threads(threads_soup)
+                # Scan thread list and accumulate the number of new replies.
+                sum_new_reply_count += scan_threads(threads_soup)
 
-            # Print the time elapsed for scanning.
-            scan_end_time = datetime.datetime.now()
-            elapsed_for_scanning = common.get_elapsed_sec(scan_start_time)
+                # Print the time elapsed for scanning.
+                scan_end_time = datetime.datetime.now()
+                elapsed_for_scanning = common.get_elapsed_sec(scan_start_time)
 
-            # Impose a proper pause.
-            recurrence_pause = last_pause * Constants.PAUSE_MULTIPLIER
-            pause = min(recurrence_pause, get_absolute_pause(sum_new_reply_count))
-            session_pause = pause  # Update to use it out from the loop.
-            fluctuated_pause = fluctuate(pause)
+                # Impose a proper pause.
+                recurrence_pause = last_pause * Constants.PAUSE_MULTIPLIER
+                pause = min(recurrence_pause, get_absolute_pause(sum_new_reply_count))
+                session_pause = pause  # Update to use it out from the loop.
+                fluctuated_pause = fluctuate(pause)
 
-            pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
-            pause_status_str += '\t' if pause >= 100 else ' \t'  # For visual alignment
+                pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
+                pause_status_str += '\t' if pause >= 100 else ' \t'  # For visual alignment
 
-            current_session_span = elapsed_for_scanning + last_pause
-            print('%1.f\t= %.1f\t+ (%1.f)\t' % (current_session_span, elapsed_for_scanning, last_pause)
-                  + str(sum_new_reply_count) + ' new\t'
-                  + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
-                  + '-> %s' % pause_status_str
-                  + '%s' % common.get_time_str())
+                current_session_span = elapsed_for_scanning + last_pause
+                print('%1.f\t= %.1f\t+ (%1.f)\t' % (current_session_span, elapsed_for_scanning, last_pause)
+                      + str(sum_new_reply_count) + ' new\t'
+                      + '(H: %.1f)\t' % (100 * sum_new_reply_count / current_session_span / (pause + 0.0001))
+                      + '-> %s' % pause_status_str
+                      + '%s' % common.get_time_str())
 
-            # Store for the next use.
-            last_pause = fluctuated_pause
-            sum_new_reply_count_last_time = sum_new_reply_count
+                # Store for the next use.
+                last_pause = fluctuated_pause
+                sum_new_reply_count_last_time = sum_new_reply_count
 
-            # Sleep to show random behavior.
-            time.sleep(fluctuated_pause)
+                # Sleep to show random behavior.
+                time.sleep(fluctuated_pause)
 
-            # Cycling
-            current_cycle_number += 1
-            is_hot = True if pause < 90 else False
-            last_cycled_time = datetime.datetime.now()
+                # Cycling
+                current_cycle_number += 1
+                is_hot = True if pause < 90 else False
+                last_cycled_time = datetime.datetime.now()
 
-        # Sufficient cycles have been conducted and pause is large: Finish the session.
-        session_elapsed_minutes = common.get_elapsed_sec(session_start_time) / 60
-        log('\n%dth cycle finished in %d minutes. Close the browser session.' %
-            (current_cycle_number, int(session_elapsed_minutes)))
+            # Sufficient cycles have been conducted and pause is large: Finish the session.
+            session_elapsed_minutes = common.get_elapsed_sec(session_start_time) / 60
+            log('\n%dth cycle finished in %d minutes. Close the browser session.' %
+                (current_cycle_number, int(session_elapsed_minutes)))
 
-        # Trim the database.
-        deleted_count = thread_db.delete_old_threads()
-        if not deleted_count:
-            log('%d threads have been deleted from database.' % deleted_count, has_tst=True)
+            # Trim the database.
+            deleted_count = thread_db.delete_old_threads()
+            if not deleted_count:
+                log('%d threads have been deleted from database.' % deleted_count, has_tst=True)
 
-    except selenium.common.exceptions.TimeoutException:
-        log('Error: Timeout in %.1f min.' % (common.get_elapsed_sec(last_cycled_time) / 60), has_tst=True)
-        log(traceback.format_exc(), 'Selenium-Timeout.pv')
-    except selenium.common.exceptions.WebDriverException as e:
-        log('Error: Cannot operate WebDriver(WebDriverException).', has_tst=True)
-        log(traceback.format_exc(), 'WebDriverException.pv')
-        time.sleep(fluctuate(210))  # Assuming the server is not operating.
-    except Exception as main_loop_exception:
-        log('Error: Cannot retrieve thread list(%s).' % main_loop_exception, has_tst=True)
-        log('Exception:%s\n%s' % (main_loop_exception, traceback.format_exc()), 'main-loop-exception.pv')
-    finally:
-        browser.quit()
-        thread_db.close_connection()
-        log('SQL connection closed.', has_tst=True)
+        except selenium.common.exceptions.TimeoutException:
+            log('Error: Timeout in %.1f min.' % (common.get_elapsed_sec(last_cycled_time) / 60), has_tst=True)
+            log(traceback.format_exc(), 'Selenium-Timeout.pv')
+        except selenium.common.exceptions.WebDriverException as e:
+            log('Error: Cannot operate WebDriver(WebDriverException).', has_tst=True)
+            log(traceback.format_exc(), 'WebDriverException.pv')
+            time.sleep(fluctuate(210))  # Assuming the server is not operating.
+        except Exception as main_loop_exception:
+            log('Error: Cannot retrieve thread list(%s).' % main_loop_exception, has_tst=True)
+            log('Exception:%s\n%s' % (main_loop_exception, traceback.format_exc()), 'main-loop-exception.pv')
+        finally:
+            browser.quit()
+            log('Driver session terminated.', has_tst=True)
+            thread_db.close_connection()
+            log('SQL connection closed.', has_tst=True)
 
         session_pause = fluctuate(session_pause)
         log('Pause for %.1f min.\t(%s)\n' % ((session_pause / 60), common.get_time_str()))
