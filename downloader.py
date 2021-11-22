@@ -119,8 +119,7 @@ def wait_for_downloading(file_name_tag):
 
 def download(source_url: str, thread_no: int, reply_no: int, pause: float):
     thread_url = common.get_thread_url(thread_no)
-    if not os.path.exists(Constants.DESTINATION_PATH):
-        os.makedirs(Constants.DESTINATION_PATH)  # create folder if it does not exist
+    common.check_dir_exists(Constants.DESTINATION_PATH)
 
     # Set the download target.
     try:
@@ -147,16 +146,16 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
         log("Error: Download failed.(%s)" % download_exception, has_tst=True)
 
 
-def __extract_download_target(page_url: str, thread_no: int, reply_no: int, pause: float) -> ():
+def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pause: float) -> ():
     thread_url = common.get_thread_url(thread_no)
-    domain = urlparse(page_url).netloc.replace('www', '')
-    html_parser = 'html.parser'
+    domain = urlparse(source_url).netloc.replace('www', '')
+
     if domain == 'imgdb.in':
-        source = requests.get(page_url).text
-        soup = BeautifulSoup(source, html_parser)
+        source = requests.get(source_url).text
+        soup = BeautifulSoup(source, common.Constants.HTML_PARSER)
         target_tag = soup.select_one('link')
         # id's
-        int_index = __format_url_index(__get_url_index(page_url))
+        int_index = __format_url_index(__get_url_index(source_url))
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
@@ -177,6 +176,8 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
+        if source_url.strip('/').endswith(domain):
+            return  # Referring the website itself, instead of a downloadable source.
         download_btn_xpath = '/html/body/div[2]/div/p/a'
         submit_btn_xpath = '/html/body/div[1]/div/form/p/input'
         pw_input_id = 'password'
@@ -192,7 +193,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
             return True
 
         try:
-            browser.get(page_url)
+            browser.get(source_url)
             if element_exists(pw_input_id):
                 wait = WebDriverWait(browser, password_timeout)
                 for password in passwords:
@@ -209,7 +210,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
                         print('Error: Incorrect password %s(%s).' % (password, e))
             # browser.find_element(By.XPATH, download_btn_xpath).send_keys(Keys.ALT, Keys.ENTER)
             browser.find_element(By.XPATH, download_btn_xpath).click()
-            download_soup = BeautifulSoup(browser.page_source, html_parser)
+            download_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
             file_name_tag = download_soup.select_one('div#download > h1.filename')
             file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
             if not file_name:
@@ -232,7 +233,7 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
             log('[ V ] after %.1f" \t: Downloaded a tmpstorage link at #%d.\t(%s)' % (pause, reply_no, thread_url),
                 file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
-            err_soup = BeautifulSoup(browser.page_source, html_parser)
+            err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Error: The link has been expired.', has_tst=True)
                 log('[ - ] after %.1f" \t: A tmpstorage link has been expired at #%d.\t(%s)' %
@@ -249,14 +250,14 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
             log('Error: Cannot retrieve tmpstorage source(%s).' % tmpstorage_exception, has_tst=True)
             log('Exception: %s\n\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()), 'tmpstorage_exception.pv')
-            err_soup = BeautifulSoup(browser.page_source, html_parser)
-            log('\n\n[Page source]\n' + err_soup.prettify(), 'tmpstorage_exception')
+            err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+            log('\n\n[Page source]\n' + err_soup.prettify(), 'tmpstorage_exception.pv')
         finally:
             browser.quit()
 
     elif domain == 'ibb.co':
-        source = requests.get(page_url).text
-        soup = BeautifulSoup(source, html_parser)
+        source = requests.get(source_url).text
+        soup = BeautifulSoup(source, common.Constants.HTML_PARSER)
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
             if soup.select_one('div.page-not-found'):
@@ -277,13 +278,15 @@ def __extract_download_target(page_url: str, thread_no: int, reply_no: int, paus
             return target_url, local_name
 
     elif domain == 'tmpfiles.org':
-        log('Error: Unusual upload on %s: tmpfiles.org.' % thread_no)
+        log('Warning: Unusual upload on %s: tmpfiles.org.' % thread_url)
     elif domain == 'sendvid.com':
-        log('Error: Unusual upload on %s: sendvid.org.' % thread_no)
+        log('Warning: Unusual upload on %s: sendvid.org.' % thread_url)
     elif domain == 'freethread.net':
-        log('%s quoted in %s.' % (page_url, thread_no))
+        log('%s quoted in %s.' % (source_url, thread_url))
+    elif domain == 'image.kilho.net':
+        log("Warning: 'image.kilho.net' quoted in %s." % thread_url)
     else:
-        log('Error: Unknown source on %s.(%s)' % (thread_no, page_url))
+        log('Warning: Unknown source on %s.(%s)' % (thread_url, source_url))
 
 
 download_count = 0

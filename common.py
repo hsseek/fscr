@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 
@@ -26,7 +27,18 @@ def get_thread_url(thread_no):
     return thread_url
 
 
+def check_dir_exists(dir_path: str):
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+        return False  # Didn't exist, but created one.
+    else:
+        return True  # Already exists.
+
+
 def log(message: str, log_path: str, has_tst: bool = False):
+    dir_path = split_on_last_pattern(log_path, '/')[0]
+    check_dir_exists(dir_path)
+
     with open(log_path, 'a') as f:
         if has_tst:
             message += '\t(%s)' % get_time_str()

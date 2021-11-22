@@ -62,8 +62,8 @@ def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, vis
         except selenium.common.exceptions.NoSuchElementException:
             log('Warning: Cannot locate %s.' % class_name)
             pass
-    log('Error: Cannot locate %s even on %d trials.\n\n[Page srouce]\n%s' % (class_name, max_trial, browser.page_source),
-        'retry-timeout.pv')
+    log('Error: Cannot locate %s even on %d trials.\n\n[Page source]\n%s'
+        % (class_name, max_trial, browser.page_source), 'retry-timeout.pv')
     return False
 
 
@@ -246,11 +246,41 @@ def copy_replies(url: str):
 sum_new_reply_count_last_time = 0
 last_pause = 0.0
 
+
+def check_privilege(driver: webdriver.Chrome):
+    timeout = 20
+    logged_in_class_name = 'user-email'
+    soup = BeautifulSoup(driver.page_source, common.Constants.HTML_PARSER)
+    if soup.select_one('.%s' % logged_in_class_name):
+        return True
+    else:
+        log('Warning: login required.\t', has_tst=True)
+        driver.get(common.Constants.ROOT_DOMAIN + common.Constants.LOGIN_PATH)
+        # Input the credentials and login
+        try:
+            driver.find_element(By.XPATH, '//*[@id="app"]/div/form/input[1]').send_keys(Constants.EMAIL)
+            driver.find_element(By.XPATH, '//*[@id="app"]/div/form/input[2]').send_keys(Constants.PW)
+            driver.find_element(By.XPATH, '//*[@id="app"]/div/form/input[3]').click()
+            WebDriverWait(driver, timeout).\
+                until(expected_conditions.presence_of_element_located((By.CLASS_NAME, logged_in_class_name)))
+            log('Login successful.\t', has_tst=True)
+            return True
+        except Exception as login_exception:
+            log('Error: login failed.(%s)' % login_exception)
+            return False
+
+
 # The main loop
 while True:
     session_start_time = datetime.datetime.now()  # The session timer
     last_cycled_time = datetime.datetime.now()  # The scan cycling log
     session_pause = 0.0  # Pause for the following session
+
+    # A random cycle number n
+    sufficient_cycle_number = random.randint(
+        Constants.MIN_SCANNING_COUNT_ON_SESSION, Constants.MAX_SCANNING_COUNT_ON_SESSION)
+    current_cycle_number = 0
+    is_hot = True
 
     # Connect to the database
     thread_db = sqlite.ThreadDatabase()
@@ -265,26 +295,14 @@ while True:
     # Online process starts.
     # Login and scan the thread list -> replies on each thread.
     try:
-        # Open the browser
-        browser.get(common.Constants.ROOT_DOMAIN + common.Constants.LOGIN_PATH)
-
-        # Input the credentials and login
-        browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[1]').send_keys(Constants.EMAIL)
-        browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[2]').send_keys(Constants.PW)
-        browser.find_element(By.XPATH, '//*[@id="app"]/div/form/input[3]').click()
-
-        browser_wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, 'user-email')))
-        # If it raises an exception, nothing to do on the site. It will loop again after pause.
-        log('Login successful.\t', has_tst=True)
-
-        # A random cycle number n
-        sufficient_cycle_number = random.randint(
-            Constants.MIN_SCANNING_COUNT_ON_SESSION, Constants.MAX_SCANNING_COUNT_ON_SESSION)
-        current_cycle_number = 0
-        is_hot = True
-
         # Scan n times on the same login session.
         while current_cycle_number < sufficient_cycle_number or is_hot:
+            is_privileged = check_privilege(browser)
+            if not is_privileged:
+                # Possibly banned for abuse. Cool down.
+                time.sleep(fluctuate(340))
+                continue
+
             # Reset the reply count.
             sum_new_reply_count = 0
 
@@ -356,28 +374,11 @@ while True:
     except Exception as main_loop_exception:
         log('Error: Cannot retrieve thread list(%s).' % main_loop_exception, has_tst=True)
         log('Exception:%s\n%s' % (main_loop_exception, traceback.format_exc()), 'main-loop-exception.pv')
-        try:
-            err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-            side_pane_elements = err_soup.select('div.user-info > a.btn')
-            for element in side_pane_elements:
-                if element['href'] == '/login':
-                    cool_down = fluctuate(340)
-                    print('The session requires login. Retry after %ds.' % int(cool_down))
-                    # Possibly banned for abuse. Cool down.
-                    time.sleep(cool_down)
-                    break
-                else:
-                    log('%s\n[Page source]\n%s' % (main_loop_exception, err_soup.prettify()),
-                        file_name='main_loop_exception.pv')
-        except Exception as e:
-            log('Error: Failed to thread list page source(%s)' % e)
-        finally:
-            time.sleep(fluctuate(90))
+    finally:
+        browser.quit()
+        thread_db.close_connection()
+        log('SQL connection closed.', has_tst=True)
 
-    browser.quit()  # Close the browser.
-    thread_db.close_connection()  # Close connection to the db.
-    log('SQL connection closed.', has_tst=True)
-    # Pause again.
-    session_pause = fluctuate(session_pause)
-    log('Pause for %.1f min.\t(%s)\n' % ((session_pause / 60), common.get_time_str()))
-    time.sleep(session_pause)
+        session_pause = fluctuate(session_pause)
+        log('Pause for %.1f min.\t(%s)\n' % ((session_pause / 60), common.get_time_str()))
+        time.sleep(session_pause)
