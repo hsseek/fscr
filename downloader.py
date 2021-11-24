@@ -140,7 +140,7 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
             log("#%d\t%s" % (download_count, Constants.DUMP_PATH + file_name), has_tst=True)
             if download_count > 10000:
                 download_count = 0
-            log('[ V ] after %.1f" \t: %s at #%d.\t(%s)' % (pause, source_url, reply_no, thread_url),
+            log('[ V ] after %.1f" \t: %s at #%d.  \t(%s)' % (pause, source_url, reply_no, thread_url),
                 file_name=Constants.DL_LOG_FILE)
     except Exception as download_exception:
         log("Error: Download failed.(%s)" % download_exception, has_tst=True)
@@ -229,7 +229,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
             if download_count > 10000:
                 log('Download count reached 10,000. Reset it.')
                 download_count = 0
-            log('[ V ] after %.1f" \t: a tmpstorage link at #%d.\t(%s)' % (pause, reply_no, thread_url),
+            log('[ V ] after %.1f" \t: a tmpstorage link at #%d.\t\t\t(%s)' % (pause, reply_no, thread_url),
                 file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
