@@ -27,7 +27,7 @@ class Constants:
     # Variables regarding randomizing the behavior
     # For the same or increasing number of new replies
     MIN_SCANNING_COUNT_ON_SESSION = 100
-    MAX_SCANNING_COUNT_ON_SESSION = 1000
+    MAX_SCANNING_COUNT_ON_SESSION = 420
     PAUSE_IDLE = 600.0
     PAUSE_POWER = 3.5
     PAUSE_MULTIPLIER = 2
@@ -242,11 +242,6 @@ def copy_replies(url: str):
     log(report_head + report_body, file_name)
 
 
-# For decreasing number of new replies
-sum_new_reply_count_last_time = 0
-last_pause = 0.0
-
-
 def check_privilege(driver: webdriver.Chrome):
     timeout = 20
     logged_in_class_name = 'user-email'
@@ -271,6 +266,10 @@ def check_privilege(driver: webdriver.Chrome):
 
 
 if __name__ == "__main__":
+    # For decreasing number of new replies
+    sum_new_reply_count_last_time = 0
+    last_pause = 0.0
+
     # The main loop
     while True:
         session_start_time = datetime.datetime.now()  # The session timer
@@ -314,10 +313,10 @@ if __name__ == "__main__":
                 browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
                 is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
                 if not is_threads_loaded:
-                    log('Error: Cannot load the thread list.')
+                    log('Error: Cannot load the thread list after pause of %d.' % last_pause, has_tst=True)
                     # Cool down and loop again.
                     time.sleep(fluctuate(12))
-                    break
+                    continue
                 threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
 
                 # Scan thread list and accumulate the number of new replies.
