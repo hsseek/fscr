@@ -62,9 +62,16 @@ def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, vis
         except selenium.common.exceptions.NoSuchElementException:
             log('Warning: Cannot locate %s.' % class_name)
             pass
-    log('Error: Cannot locate %s even on %d trials.\n\n[Page source]\n%s'
-        % (class_name, max_trial, browser.page_source), 'retry-timeout.pv')
     return False
+
+
+def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE):
+    try:
+        html_source = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER).prettify()
+        formatted_msg = '%s\n\n[Page source]\n%s' % (msg, html_source) if msg else html_source
+        log(formatted_msg, file_name)
+    except Exception as page_source_exception:
+        log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
 def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
@@ -77,6 +84,7 @@ def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
         is_loaded = wait_and_retry(browser_wait, 'th-contents')
         if not is_loaded:
             log('Error: Cannot scan the only reply. (%s)' % thread_url)
+            log_page_source(file_name='only-reply-error.pv')
             return  # Cannot load the page, noting to do.
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         scan_head(replies_soup, thread_no, thread_url)
@@ -84,6 +92,7 @@ def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
         is_loaded = wait_and_retry(browser_wait, 'thread-reply')
         if not is_loaded:
             log('Error: Cannot scan replies. (%s)' % thread_url)
+            log_page_source(file_name='replies-error.pv')
             return  # Cannot load the page, noting to do.
         # Get the thread list and the scanning targets(the new replies)
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
@@ -221,6 +230,7 @@ def copy_replies(url: str):
     is_loaded = wait_and_retry(browser_wait, 'thread-reply', visibility_of_all=True)
     if not is_loaded:
         log('Error: Cannot scan the replies while trying to copy them. (%s)' % url)
+        log_page_source(file_name='copy-replies-error.pv')
         return  # Cannot load the page, noting to do.
     # Get the thread list and the scanning targets(the new replies)
     replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
