@@ -8,6 +8,7 @@ selenium = "*"
 beautifulsoup4 = "*"
 requests = "*"
 mysql-connector-python = "*"
+pillow = "*"
 
 [dev-packages]
 

@@ -75,10 +75,17 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
         log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
-def scan_replies(thread_no: int, scan_count: int, is_new_thread: bool):
+def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
+    is_privileged = check_privilege(browser)
+    if not is_privileged:
+        # Possibly banned for abuse. Cool down.
+        time.sleep(fluctuate(340))
+        return
+
     # Open the page to scan
     thread_url = common.get_thread_url(thread_no)
-    browser.get(thread_url)
+    if browser.current_url != thread_url:
+        browser.get(thread_url)
 
     is_scan_head_only = True if scan_count == 1 and is_new_thread else False
     if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
@@ -275,7 +282,7 @@ def check_privilege(driver: webdriver.Chrome):
             return False
 
 
-def scan_thread_list():
+def load_thread_list():
     is_privileged = check_privilege(browser)
     if not is_privileged:
         # Possibly banned for abuse. Cool down.
@@ -328,7 +335,7 @@ def loop_scanning():
         while current_cycle_number < sufficient_cycle_number or is_hot:
             # Scan thread list and the new replies.
             scan_start_time = datetime.now()  # Start the timer.
-            sum_new_reply_count = scan_thread_list()
+            sum_new_reply_count = load_thread_list()
             elapsed_for_scanning = common.get_elapsed_sec(scan_start_time)  # Print the time elapsed for scanning.
     
             # Impose a proper pause.

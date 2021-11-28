@@ -10,10 +10,10 @@ from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
-import time
-
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
+from PIL import Image
+import time
 
 
 class Constants:
@@ -65,6 +65,16 @@ def __format_url_index(url_index: ()) -> str:
 def __format_file_name(file_name: str) -> str:
     chunks = common.split_on_last_pattern(file_name, '.')
     return chunks[0].strip().replace(' ', '-').replace('.', '-') + '.' + chunks[1]
+
+
+def __convert_webp_to_png(stored_dir, filename):
+    ext = 'png'
+    stored_path = os.path.join(stored_dir, filename)
+    img = Image.open(stored_path).convert("RGB")
+    new_filename = common.split_on_last_pattern(filename, '.')[0] + '.' + ext
+    new_path = os.path.join(stored_dir, new_filename)
+    img.save(new_path, ext)
+    os.remove(stored_path)
 
 
 def wait_for_downloading(file_name_tag):
@@ -125,8 +135,7 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
     try:
         target = __extract_download_target(source_url, thread_no, reply_no, pause)
         if target is not None:  # If None, a respective error message has been issued in __extract method.
-            file_url = target[0]  # The url on the server
-            file_name = target[1]  # A file name to store in local
+            file_url, file_name = target
             request = requests.get(file_url, stream=True)
             file_path = os.path.join(Constants.DESTINATION_PATH, file_name)
             with open(file_path, 'wb') as f:
@@ -142,8 +151,14 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
                 download_count = 0
             log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
                 file_name=Constants.DL_LOG_FILE)
+
+            # Convert a webp file.
+            if file_name.endswith('.webp'):
+                __convert_webp_to_png(Constants.DESTINATION_PATH, file_name)
+
     except Exception as download_exception:
         log("Error: Download failed.(%s)" % download_exception, has_tst=True)
+        print(traceback.format_exc())
 
 
 def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pause: float) -> ():
@@ -166,12 +181,11 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
             target_url = target_tag['href']  # url of the file to download
-            target_extension = target_url.split('.')[-1]
-            if target_extension == 'dn':
-                log('삭제된 이미지입니다.(image.dn)', has_tst=True)  # Likely to be a file in a wrong format
-            else:
-                local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, target_extension)
-                return target_url, local_name
+            category, extension = requests.session().get(target_url).headers['Content-Type'].split('/')
+            if category != 'image':
+                log('Error: %s is not an image(quoted at #%s).' % (source_url, reply_no), has_tst=True)
+            local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, extension)
+            return target_url, local_name
 
     # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
