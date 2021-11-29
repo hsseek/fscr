@@ -297,6 +297,7 @@ def load_thread_list():
     is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
     if not is_threads_loaded:
         log('Error: Cannot load thread list after pause of %d.' % last_pause, has_tst=True)
+        log('Page source\n\n' + browser.page_source, file_name='thread-list-err.pv')
         # Cool down and loop again.
         time.sleep(fluctuate(12))
         return 
@@ -336,17 +337,19 @@ def loop_scanning():
             # Scan thread list and the new replies.
             scan_start_time = datetime.now()  # Start the timer.
             sum_new_reply_count = load_thread_list()
-            elapsed_for_scanning = common.get_elapsed_sec(scan_start_time)  # Print the time elapsed for scanning.
-    
+            if sum_new_reply_count is None:
+                continue  # Something went wrong. Skip the cycle and retry.
+
             # Impose a proper pause.
+            elapsed_for_scanning = common.get_elapsed_sec(scan_start_time)
             cycle_pause, fluctuated_cycle_pause = impose_pause(sum_new_reply_count, elapsed_for_scanning)
-    
+
             # Store for the next use.
             last_pause = fluctuated_cycle_pause
-    
-            # Sleep to show random behavior.
+
+            # Sleep to implement random behavior.
             time.sleep(fluctuated_cycle_pause)
-    
+
             # Cycling
             current_cycle_number += 1
             is_hot = True if cycle_pause < Constants.HOT_THRESHOLD_SEC else False
