@@ -18,8 +18,9 @@ import time
 
 class Constants:
     DL_LOG_FILE = 'log-dl.pv'
-    DESTINATION_PATH = common.read_from_file('download_destination_path.pv')
+    DESTINATION_PATH = common.read_from_file('DOWNLOAD_DESTINATION_PATH.pv')
     DUMP_PATH = common.read_from_file('DUMP_PATH.pv')
+    PASSWORDS = common.build_tuple('PASSWORD_CANDIDATES.pv')
 
 
 def log(message: str, file_name: str = common.Constants.LOG_FILE, has_tst: bool = False):
@@ -158,6 +159,7 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
 
     except Exception as download_exception:
         log("Error: Download failed.(%s)" % download_exception, has_tst=True)
+        log('Download failure traceback\n\n' + traceback.format_exc(), file_name=Constants.DL_LOG_FILE, has_tst=True)
         print(traceback.format_exc())
 
 
@@ -195,7 +197,6 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
         submit_btn_xpath = '/html/body/div[1]/div/form/p/input'
         pw_input_id = 'password'
         browser = initiate_browser()
-        passwords = ('0000', '1234', '1111')
         password_timeout = 3
 
         def element_exists(element_id: str):
@@ -209,7 +210,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
             browser.get(source_url)
             if element_exists(pw_input_id):
                 wait = WebDriverWait(browser, password_timeout)
-                for password in passwords:
+                for password in Constants.PASSWORDS:
                     browser.find_element(By.ID, pw_input_id).clear()
                     browser.find_element(By.ID, pw_input_id).send_keys(password)
                     browser.find_element(By.XPATH, submit_btn_xpath).click()

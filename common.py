@@ -7,6 +7,11 @@ def read_from_file(path: str):
         return f.read().strip('\n')
 
 
+def build_tuple(path: str):
+    content = read_from_file(path)
+    return tuple(content.split('\n'))
+
+
 def get_time_str():
     return str(datetime.now()).split('.')[0]
 

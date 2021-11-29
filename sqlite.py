@@ -16,9 +16,9 @@ class ThreadDatabase:
 
         self.database = mysql.connector.connect(
             host="localhost",
-            user=read_from_file('db_user.pv'),
-            password=read_from_file('db_password.pv'),
-            database=read_from_file('db_name.pv')
+            user=read_from_file('DB_USER.pv'),
+            password=read_from_file('DB_PASSWORD.pv'),
+            database=read_from_file('DB_NAME.pv')
         )
 
     def create_table(self):

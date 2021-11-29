@@ -296,7 +296,7 @@ def load_thread_list():
     browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
     is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
     if not is_threads_loaded:
-        log('Error: Cannot load the thread list after pause of %d.' % last_pause, has_tst=True)
+        log('Error: Cannot load thread list after pause of %d.' % last_pause, has_tst=True)
         # Cool down and loop again.
         time.sleep(fluctuate(12))
         return 
