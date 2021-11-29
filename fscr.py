@@ -394,7 +394,7 @@ if __name__ == "__main__":
             time.sleep(fluctuate(210))  # Assuming the server is not operating.
         except Exception as main_loop_exception:
             log('Error: Cannot retrieve thread list(%s).' % main_loop_exception, has_tst=True)
-            log('Exception:%s\n%s' % (main_loop_exception, traceback.format_exc()), 'main-loop-exception.pv')
+            log('Exception:%s\n%s' % (main_loop_exception, traceback.format_exc()), 'main-loop-error.pv')
         finally:
             browser.quit()
             log('Driver session terminated.', has_tst=True)

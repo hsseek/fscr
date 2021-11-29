@@ -145,11 +145,7 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
                         f.write(chunk)
                         f.flush()
                         os.fsync(f.fileno())
-            global download_count
-            download_count += 1
-            log("#%d\t%s" % (download_count, Constants.DUMP_PATH + file_name), has_tst=True)
-            if download_count > 10000:
-                download_count = 0
+            log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
             log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
                 file_name=Constants.DL_LOG_FILE)
 
@@ -238,12 +234,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
                       Constants.DESTINATION_PATH + local_name)
 
             # Log the change.
-            global download_count
-            download_count += 1
-            log("#%d\t%s" % (download_count, Constants.DUMP_PATH + local_name), has_tst=True)
-            if download_count > 10000:
-                log('Download count reached 10,000. Reset it.')
-                download_count = 0
+            log("%s" % (Constants.DUMP_PATH + local_name), has_tst=True)
             log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
                 file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
@@ -300,6 +291,3 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
         log("Warning: 'image.kilho.net' quoted in %s." % thread_url)
     else:
         log('Warning: Unknown source on %s.(%s)' % (thread_url, source_url))
-
-
-download_count = 0
