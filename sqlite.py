@@ -1,4 +1,5 @@
 import mysql.connector
+import common
 
 
 class Table:
@@ -14,11 +15,13 @@ class ThreadDatabase:
             with open(path) as f:
                 return f.read().strip('\n')
 
+        user, pw, db_name = common.build_tuple('DB_INFO.pv')
+
         self.database = mysql.connector.connect(
             host="localhost",
-            user=read_from_file('DB_USER.pv'),
-            password=read_from_file('DB_PASSWORD.pv'),
-            database=read_from_file('DB_NAME.pv')
+            user=user,
+            password=pw,
+            database=db_name
         )
 
     def create_table(self):

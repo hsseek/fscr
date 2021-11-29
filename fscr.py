@@ -21,9 +21,8 @@ class Constants:
     HTML_TIMEOUT = 15
 
     # Credentials
-    EMAIL = common.read_from_file('EMAIL.pv')
-    PW = common.read_from_file('PW.pv')
-    
+    EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
+
     # Variables regarding randomizing the behavior
     # For the same or increasing number of new replies
     MIN_SCANNING_COUNT_ON_SESSION = 100

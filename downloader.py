@@ -176,7 +176,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Error: Cannot download %s quoted at #%s.' % (int_index, reply_no), has_tst=True)
+                log('Sorry, cannot download %s quoted at #%s.' % (int_index, reply_no), has_tst=True)
                 log('[ - ] after %.1f" \t: %s #%d  \t-!->\t%s' %
                     (pause, thread_url, reply_no, int_index), file_name=Constants.DL_LOG_FILE, has_tst=True)
             else:
@@ -249,7 +249,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
             if err_soup.select_one('div#expired > p.notice'):
-                log('Error: The link has been expired.', has_tst=True)
+                log('Sorry, the link has been expired.', has_tst=True)
                 log('[ - ] after %.1f" \t: %s #%d  \t-!->\t%s' %
                     (pause, thread_url, reply_no, source_url), file_name=Constants.DL_LOG_FILE, has_tst=True)
             elif err_soup.select_one('div#delete > p.delete'):

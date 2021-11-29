@@ -53,8 +53,8 @@ def log(message: str, log_path: str, has_tst: bool = False):
 
 class Constants:
     DRIVER_PATH = read_from_file('DRIVER_PATH.pv')
-    ROOT_DOMAIN = read_from_file('ROOT_DOMAIN.pv')
-    LOGIN_PATH = read_from_file('LOGIN_PATH.pv')
+    ROOT_DOMAIN = read_from_file('ROOT_URL.pv')
+    LOGIN_PATH = read_from_file('LOGIN_URL.pv')
     LOG_PATH = read_from_file('LOG_PATH.pv')
     LOG_FILE = 'log-fs.pv'
     CAUTION_PATH = '/caution'
