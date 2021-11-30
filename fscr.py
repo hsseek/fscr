@@ -12,7 +12,6 @@ import bs4
 from bs4 import BeautifulSoup
 import random
 from datetime import datetime
-# Custom scripts
 import sqlite
 import downloader
 
@@ -38,7 +37,7 @@ def initiate_browser():
     service = Service(common.Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_argument('headless')
-    options.add_argument('disable-gpu')
+    # options.add_argument('disable-gpu')
     # options.add_experimental_option("detach", True)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -387,7 +386,6 @@ if __name__ == "__main__":
         # Login and scan the thread list -> replies on each thread.
         try:
             loop_scanning()
-
         except selenium.common.exceptions.WebDriverException as e:
             log('Error: Cannot operate WebDriver(WebDriverException).', has_tst=True)
             log(traceback.format_exc(), 'WebDriverException.pv')
@@ -402,5 +400,5 @@ if __name__ == "__main__":
             log('SQL connection closed.', has_tst=True)
 
         session_pause = fluctuate(Constants.HOT_THRESHOLD_SEC)
-        log('Pause for %.1f min.\t(%s)\n' % (session_pause, common.get_time_str()))
+        log('Pause for %.1f min.\t(%s)\n' % (session_pause/60, common.get_time_str()))
         time.sleep(session_pause)

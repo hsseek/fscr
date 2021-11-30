@@ -1,5 +1,5 @@
 import common
-import glob
+from glob import glob
 import os
 import traceback
 
@@ -18,7 +18,7 @@ import time
 
 class Constants:
     DL_LOG_FILE = 'log-dl.pv'
-    DESTINATION_PATH = common.read_from_file('DOWNLOAD_DESTINATION_PATH.pv')
+    DESTINATION_PATH, TMP_DOWNLOAD_PATH = common.build_tuple('DOWNLOAD_DESTINATION_PATH.pv')
     DUMP_PATH = common.read_from_file('DUMP_PATH.pv')
     PASSWORDS = common.build_tuple('PASSWORD_CANDIDATES.pv')
 
@@ -32,11 +32,11 @@ def initiate_browser():
     service = Service(common.Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_experimental_option("prefs", {
-        "download.default_directory": Constants.DESTINATION_PATH,
+        "download.default_directory": Constants.TMP_DOWNLOAD_PATH,
         "download.prompt_for_download": False
     })
     options.add_argument('headless')
-    options.add_argument('disable-gpu')
+    # options.add_argument('disable-gpu')
     # options.add_experimental_option("detach", True)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -78,54 +78,26 @@ def __convert_webp_to_png(stored_dir, filename):
     os.remove(stored_path)
 
 
-def wait_for_downloading(file_name_tag):
+def wait_finish_downloading(temp_dir_path: str):
     seconds = 0
-    check_interval = 1
-    is_downloading = False
-    temp_extension = '.crdownload'
-    file_name = None
+    check_interval = 2
+    timeout = 180
 
-    if file_name_tag:  # The file name has been specified.
-        while not is_downloading and seconds < 5:  # Loop up to 5 seconds to locate downloading file.
-            file_name = file_name_tag.string
-            if os.path.exists(Constants.DESTINATION_PATH + file_name + temp_extension):
-                is_downloading = True
-                break
-            seconds += check_interval
-            time.sleep(check_interval)
-    else:  # Search the file.
-        while not is_downloading and seconds < 3:  # Loop up to 5 seconds to locate downloading file.
-            for file in os.listdir(Constants.DESTINATION_PATH):
-                if file.endswith(temp_extension):
-                    # A temporary chrome downloading file detected.
-                    is_downloading = True
-                    file_name = file.replace(' (1)', '').replace(temp_extension, '')
-                    break
-            seconds += check_interval
-            time.sleep(check_interval)
-
-    if is_downloading:
-        last_file_size = 0
-        # TODO: Use async thread.
-        temp_file_name = file_name + temp_extension
-        while is_downloading and os.path.exists(Constants.DESTINATION_PATH + temp_file_name) and seconds < 25:
-            current_file_size = os.path.getsize(Constants.DESTINATION_PATH + temp_file_name)
-            if current_file_size == last_file_size:
-                # Download finished, while the file name hasn't been properly changed.
-                # (Unless downloading speed is slower than 1 byte/sec.)
-                break
-            last_file_size = current_file_size  # Update the file size.
-            time.sleep(check_interval)
-            seconds += check_interval
-        # Rename temporary files: Download not finished, duplicated, ...
-        for file in os.listdir(Constants.DESTINATION_PATH):
-            if file.endswith(temp_extension):
-                if file.endswith(' (1)' + temp_extension):  # Remove duplicates : filename.gif (1).crdownload
-                    os.remove(Constants.DESTINATION_PATH + file)
-                else:
-                    os.rename(Constants.DESTINATION_PATH + file,
-                              Constants.DESTINATION_PATH + file.replace(temp_extension, ''))
-    return file_name
+    last_size = 0
+    while seconds <= timeout:
+        current_size = sum(os.path.getsize(f) for f in glob(temp_dir_path + '*') if os.path.isfile(f))
+        if current_size == last_size and last_size > 0:
+            return True
+        print('Waiting to finish downloading. (%d/%d)' % (seconds, timeout))
+        # Report
+        if current_size != last_size:
+            print('%.1f -> %.1f MB' % (last_size / 1000000, current_size / 1000000))
+        # Wait
+        time.sleep(check_interval)
+        seconds += check_interval
+        last_size = current_size
+    print('Download timeout reached.')
+    return False  # Timeout
 
 
 def download(source_url: str, thread_no: int, reply_no: int, pause: float):
@@ -192,24 +164,24 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
         download_btn_xpath = '/html/body/div[2]/div/p/a'
         submit_btn_xpath = '/html/body/div[1]/div/form/p/input'
         pw_input_id = 'password'
-        browser = initiate_browser()
+        tmp_browser = initiate_browser()
         password_timeout = 3
 
         def element_exists(element_id: str):
             try:
-                browser.find_element(By.ID, element_id)
+                tmp_browser.find_element(By.ID, element_id)
             except selenium.common.exceptions.NoSuchElementException:
                 return False
             return True
 
         try:
-            browser.get(source_url)
+            tmp_browser.get(source_url)
             if element_exists(pw_input_id):
-                wait = WebDriverWait(browser, password_timeout)
+                wait = WebDriverWait(tmp_browser, password_timeout)
                 for password in Constants.PASSWORDS:
-                    browser.find_element(By.ID, pw_input_id).clear()
-                    browser.find_element(By.ID, pw_input_id).send_keys(password)
-                    browser.find_element(By.XPATH, submit_btn_xpath).click()
+                    tmp_browser.find_element(By.ID, pw_input_id).clear()
+                    tmp_browser.find_element(By.ID, pw_input_id).send_keys(password)
+                    tmp_browser.find_element(By.XPATH, submit_btn_xpath).click()
                     try:
                         wait.until(expected_conditions.presence_of_element_located((By.XPATH, download_btn_xpath)))
                         log('%s: Password matched.' % password)
@@ -218,27 +190,17 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
                         print('Error: Incorrect password %s.' % password)
                     except Exception as e:
                         print('Error: Incorrect password %s(%s).' % (password, e))
-            # browser.find_element(By.XPATH, download_btn_xpath).send_keys(Keys.ALT, Keys.ENTER)
-            browser.find_element(By.XPATH, download_btn_xpath).click()
-            download_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-            file_name_tag = download_soup.select_one('div#download > h1.filename')
-            file_name = wait_for_downloading(file_name_tag)  # Wait for seconds.
-            if not file_name:
-                # Get the second latest file (the first latest is always the log file).
-                second_latest_file = sorted(glob.iglob(Constants.DESTINATION_PATH + '*'), key=os.path.getctime)[-2]
-                file_name = common.split_on_last_pattern(second_latest_file, '/')[-1]
-                log('Error: Cannot retrieve tmpstorage file name, assuming %s as the file.' % file_name)
-            local_name = '%s-%s-%03d-%s' % (
-                domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
-            os.rename(Constants.DESTINATION_PATH + file_name,
-                      Constants.DESTINATION_PATH + local_name)
-
-            # Log the change.
-            log("%s" % (Constants.DUMP_PATH + local_name), has_tst=True)
-            log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
-                file_name=Constants.DL_LOG_FILE)
+            common.check_dir_exists(Constants.TMP_DOWNLOAD_PATH)
+            tmp_browser.find_element(By.XPATH, download_btn_xpath).click()
+            is_dl_successful = wait_finish_downloading(Constants.TMP_DOWNLOAD_PATH)
+            if is_dl_successful:
+                for file_name in os.listdir(Constants.TMP_DOWNLOAD_PATH):
+                    os.rename(Constants.TMP_DOWNLOAD_PATH + file_name, Constants.DESTINATION_PATH + file_name)
+                    log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
+                    log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
+                        file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
-            err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+            err_soup = BeautifulSoup(tmp_browser.page_source, common.Constants.HTML_PARSER)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Sorry, the link has been expired.', has_tst=True)
                 log('[ - ] after %.1f" \t: %s #%d  \t-!->\t%s' %
@@ -254,10 +216,16 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
             log('Error: Cannot retrieve tmpstorage source(%s).' % tmpstorage_exception, has_tst=True)
             log('Exception: %s\n\n[Traceback]\n%s' %
                 (tmpstorage_exception, traceback.format_exc()), 'tmpstorage_exception.pv')
-            err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+            err_soup = BeautifulSoup(tmp_browser.page_source, common.Constants.HTML_PARSER)
             log('\n\n[Page source]\n' + err_soup.prettify(), 'tmpstorage_exception.pv')
         finally:
-            browser.quit()
+            tmp_browser.quit()
+            common.check_dir_exists(Constants.TMP_DOWNLOAD_PATH)
+            for file_name in os.listdir(Constants.TMP_DOWNLOAD_PATH):  # Clear the tmp directory.
+                os.rename(Constants.TMP_DOWNLOAD_PATH + file_name, Constants.DESTINATION_PATH + file_name)
+                log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
+                log('[ / ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
+                    file_name=Constants.DL_LOG_FILE)
 
     elif domain == 'ibb.co':
         source = requests.get(source_url).text
