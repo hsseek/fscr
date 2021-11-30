@@ -78,10 +78,9 @@ def __convert_webp_to_png(stored_dir, filename):
     os.remove(stored_path)
 
 
-def wait_finish_downloading(temp_dir_path: str):
+def wait_finish_downloading(temp_dir_path: str, timeout: int):
     seconds = 0
     check_interval = 2
-    timeout = 180
 
     last_size = 0
     while seconds <= timeout:
@@ -100,13 +99,13 @@ def wait_finish_downloading(temp_dir_path: str):
     return False  # Timeout
 
 
-def download(source_url: str, thread_no: int, reply_no: int, pause: float):
+def download(source_url: str, thread_no: int, reply_no: int, prev_pause: float, prev_prev_pause: float):
     thread_url = common.get_thread_url(thread_no)
     common.check_dir_exists(Constants.DESTINATION_PATH)
 
     # Set the download target.
     try:
-        target = __extract_download_target(source_url, thread_no, reply_no, pause)
+        target = __extract_download_target(source_url, thread_no, reply_no, prev_pause, prev_prev_pause)
         if target is not None:  # If None, a respective error message has been issued in __extract method.
             file_url, file_name = target
             request = requests.get(file_url, stream=True)
@@ -118,7 +117,8 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
                         f.flush()
                         os.fsync(f.fileno())
             log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
-            log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
+            log('[ V ] <- %.1f" \t< - %.1f" \t: %s #%d  \t->  \t%s' %
+                (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
                 file_name=Constants.DL_LOG_FILE)
 
             # Convert a webp file.
@@ -131,7 +131,8 @@ def download(source_url: str, thread_no: int, reply_no: int, pause: float):
         print(traceback.format_exc())
 
 
-def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pause: float) -> ():
+def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
+                              prev_pause: float, prev_prev_pause: float) -> ():
     thread_url = common.get_thread_url(thread_no)
     domain = urlparse(source_url).netloc.replace('www', '')
 
@@ -145,8 +146,9 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
                 log('Sorry, cannot download %s quoted at #%s.' % (int_index, reply_no), has_tst=True)
-                log('[ - ] after %.1f" \t: %s #%d  \t-!->\t%s' %
-                    (pause, thread_url, reply_no, int_index), file_name=Constants.DL_LOG_FILE, has_tst=True)
+                log('[ - ] <- %.1f" \t< - %.1f" \t: %s #%d  \t-!->\t%s' %
+                    (prev_pause, prev_prev_pause, thread_url, reply_no, int_index),
+                    file_name=Constants.DL_LOG_FILE, has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
@@ -192,19 +194,21 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
                         print('Error: Incorrect password %s(%s).' % (password, e))
             common.check_dir_exists(Constants.TMP_DOWNLOAD_PATH)
             tmp_browser.find_element(By.XPATH, download_btn_xpath).click()
-            is_dl_successful = wait_finish_downloading(Constants.TMP_DOWNLOAD_PATH)
+            is_dl_successful = wait_finish_downloading(Constants.TMP_DOWNLOAD_PATH, 210)
             if is_dl_successful:
                 for file_name in os.listdir(Constants.TMP_DOWNLOAD_PATH):
                     os.rename(Constants.TMP_DOWNLOAD_PATH + file_name, Constants.DESTINATION_PATH + file_name)
                     log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
-                    log('[ V ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
+                    log('[ V ] <- %.1f" \t< - %.1f" \t: %s #%d  \t->  \t%s'
+                        % (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
                         file_name=Constants.DL_LOG_FILE)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(tmp_browser.page_source, common.Constants.HTML_PARSER)
             if err_soup.select_one('div#expired > p.notice'):
                 log('Sorry, the link has been expired.', has_tst=True)
-                log('[ - ] after %.1f" \t: %s #%d  \t-!->\t%s' %
-                    (pause, thread_url, reply_no, source_url), file_name=Constants.DL_LOG_FILE, has_tst=True)
+                log('[ - ] <- %.1f" \t< - %.1f" \t: %s #%d  \t-!->\t%s' %
+                    (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
+                    file_name=Constants.DL_LOG_FILE, has_tst=True)
             elif err_soup.select_one('div#delete > p.delete'):
                 log('Error: Cannot locate the download button(삭제하시겠습니까?).', has_tst=True)
             else:
@@ -224,7 +228,8 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int, pa
             for file_name in os.listdir(Constants.TMP_DOWNLOAD_PATH):  # Clear the tmp directory.
                 os.rename(Constants.TMP_DOWNLOAD_PATH + file_name, Constants.DESTINATION_PATH + file_name)
                 log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
-                log('[ / ] after %.1f" \t: %s #%d  \t->  \t%s' % (pause, thread_url, reply_no, source_url),
+                log('[ / ] <- %.1f" \t< - %.1f" \t: %s #%d  \t->  \t%s' %
+                    (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
                     file_name=Constants.DL_LOG_FILE)
 
     elif domain == 'ibb.co':

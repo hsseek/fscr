@@ -24,8 +24,8 @@ class Constants:
 
     # Variables regarding randomizing the behavior
     # For the same or increasing number of new replies
-    MIN_SCANNING_COUNT_ON_SESSION = 100
-    MAX_SCANNING_COUNT_ON_SESSION = 420
+    MIN_SCANNING_COUNT_PER_SESSION = 100
+    MAX_SCANNING_COUNT_PER_SESSION = 420
     PAUSE_IDLE = 600.0
     PAUSE_POWER = 3.5
     PAUSE_MULTIPLIER = 2
@@ -114,18 +114,18 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
 
 
 def scan_head(replies_soup, thread_no, thread_url):
-    global last_pause
+    global prev_pause, prev_prev_pause
     head = replies_soup.select_one('div.thread-first-reply')
     links_in_head = head.select('a.link')
     if links_in_head:  # Link(s) present in the head
         log(compose_reply_report(replies_soup, thread_url, head, 1))
         for link in links_in_head:
             source_url = link['href']
-            downloader.download(source_url, thread_no, 1, last_pause)
+            downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
 
 
 def scan_content(replies_soup, reply, thread_no, thread_url):
-    global last_pause
+    global prev_pause, prev_prev_pause
     links_in_reply = reply.select('div.th-contents > a.link')
     if links_in_reply:  # Link(s) present in the reply
         # Retrieve the reply information.
@@ -134,7 +134,7 @@ def scan_content(replies_soup, reply, thread_no, thread_url):
         log(compose_reply_report(replies_soup, thread_url, reply, reply_no))
         for link in links_in_reply:
             source_url = link['href']
-            downloader.download(source_url, thread_no, int(reply_no), last_pause)  # Now refer the source page.
+            downloader.download(source_url, thread_no, int(reply_no), prev_pause, prev_prev_pause)
 
 
 def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
@@ -294,7 +294,7 @@ def load_thread_list():
     browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
     is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
     if not is_threads_loaded:
-        log('Error: Cannot load thread list after pause of %d.' % last_pause, has_tst=True)
+        log('Error: Cannot load thread list after pause of %d.' % prev_pause, has_tst=True)
         log('Page source\n\n' + browser.page_source, file_name='thread-list-err.pv')
         # Cool down and loop again.
         time.sleep(fluctuate(12))
@@ -307,13 +307,13 @@ def load_thread_list():
 
 
 def impose_pause(new_reply_count: int, elapsed_sec: float):
-    recurrence_pause = last_pause * Constants.PAUSE_MULTIPLIER
+    recurrence_pause = prev_pause * Constants.PAUSE_MULTIPLIER
     pause = min(recurrence_pause, get_absolute_pause(new_reply_count))
     fluctuated_pause = fluctuate(pause)
     pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
     pause_status_str += '\t' if pause >= 100 else ' \t'  # For visual alignment
-    current_session_span = elapsed_sec + last_pause
-    print('%1.f\t= %.1f\t+ (%1.f)\t' % (current_session_span, elapsed_sec, last_pause)
+    current_session_span = elapsed_sec + prev_pause
+    print('%1.f\t= %.1f\t+ (%1.f)\t' % (current_session_span, elapsed_sec, prev_pause)
           + str(new_reply_count) + ' new\t'
           + '(H: %.1f)\t' % (100 * new_reply_count / current_session_span / (pause + 0.0001))
           + '-> %s' % pause_status_str
@@ -324,11 +324,11 @@ def impose_pause(new_reply_count: int, elapsed_sec: float):
 def loop_scanning():
     # A random cycle number n
     sufficient_cycle_number = random.randint(
-        Constants.MIN_SCANNING_COUNT_ON_SESSION, Constants.MAX_SCANNING_COUNT_ON_SESSION)
+        Constants.MIN_SCANNING_COUNT_PER_SESSION, Constants.MAX_SCANNING_COUNT_PER_SESSION)
     current_cycle_number = 0
     last_cycled_time = datetime.now()
     is_hot = True
-    global last_pause
+    global prev_pause, prev_prev_pause
     # Scan n times on the same login session.
     try:
         while current_cycle_number < sufficient_cycle_number or is_hot:
@@ -343,7 +343,8 @@ def loop_scanning():
             cycle_pause, fluctuated_cycle_pause = impose_pause(sum_new_reply_count, elapsed_for_scanning)
 
             # Store for the next use.
-            last_pause = fluctuated_cycle_pause
+            prev_prev_pause = prev_pause
+            prev_pause = fluctuated_cycle_pause
 
             # Sleep to implement random behavior.
             time.sleep(fluctuated_cycle_pause)
@@ -367,7 +368,8 @@ def loop_scanning():
 
 if __name__ == "__main__":
     # For decreasing number of new replies
-    last_pause = 0.0
+    prev_pause = 0.0
+    prev_prev_pause = 0.0
 
     # The main loop
     while True:
