@@ -127,13 +127,17 @@ def download(source_url: str, thread_no: int, reply_no: int, prev_pause: float, 
 
     except Exception as download_exception:
         log("Error: Download failed.(%s)" % download_exception, has_tst=True)
-        log('Download failure traceback\n\n' + traceback.format_exc(), file_name=Constants.DL_LOG_FILE, has_tst=True)
+        log('Download failure traceback\n\n' + traceback.format_exc(), file_name='exception-dl.pv', has_tst=True)
         print(traceback.format_exc())
 
 
 def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                               prev_pause: float, prev_prev_pause: float) -> ():
-    thread_url = common.get_thread_url(thread_no)
+    thread_url = common.get_thread_url(thread_no)  # The url of the thread quoting the source
+    source_category, source_extension = retrieve_content_type(source_url)
+    if source_category == 'image':
+        return source_url, '%d-%03d.%s' % (thread_no, reply_no, source_extension)
+
     domain = urlparse(source_url).netloc.replace('www', '')
 
     if domain == 'imgdb.in':
@@ -153,13 +157,12 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
             target_url = target_tag['href']  # url of the file to download
-            category, extension = requests.session().get(target_url).headers['Content-Type'].split('/')
-            if category != 'image':
+            imgdb_link_category, imgdb_link_extension = retrieve_content_type(target_url)
+            if imgdb_link_category != 'image':
                 log('Error: %s is not an image(quoted at #%s).' % (source_url, reply_no), has_tst=True)
-            local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, extension)
+            local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, imgdb_link_extension)
             return target_url, local_name
 
-    # Unusual sources: Consider parsing if used often.
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
         if source_url.strip('/').endswith(domain):
             return  # Referring the website itself, instead of a downloadable source.
@@ -217,11 +220,12 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         except FileNotFoundError as file_exception:
             log('Error: The local file not found.\n%s' % file_exception)
         except Exception as tmpstorage_exception:
+            file_name = 'exception-tmpstorage.pv'
             log('Error: Cannot retrieve tmpstorage source(%s).' % tmpstorage_exception, has_tst=True)
             log('Exception: %s\n\n[Traceback]\n%s' %
-                (tmpstorage_exception, traceback.format_exc()), 'tmpstorage_exception.pv')
+                (tmpstorage_exception, traceback.format_exc()), file_name)
             err_soup = BeautifulSoup(tmp_browser.page_source, common.Constants.HTML_PARSER)
-            log('\n\n[Page source]\n' + err_soup.prettify(), 'tmpstorage_exception.pv')
+            log('\n\n[Page source]\n' + err_soup.prettify(), file_name)
         finally:
             tmp_browser.quit()
             common.check_dir_exists(Constants.TMP_DOWNLOAD_PATH)
@@ -264,3 +268,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         log("Warning: 'image.kilho.net' quoted in %s." % thread_url)
     else:
         log('Warning: Unknown source on %s.(%s)' % (thread_url, source_url))
+
+
+def retrieve_content_type(target_url):
+    return requests.session().get(target_url).headers['Content-Type'].split('/')
