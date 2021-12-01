@@ -84,7 +84,6 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
     thread_url = common.get_thread_url(thread_no)
     if browser.current_url != thread_url:
         browser.get(thread_url)
-
     is_scan_head_only = True if scan_count == 1 and is_new_thread else False
     if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
         is_loaded = wait_and_retry(browser_wait, 'th-contents')
@@ -218,11 +217,11 @@ def __scan_threads(soup) -> int:
                     exception_last_line = str(reply_exception).splitlines()[-1]
                     log('Error: Reply scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
                     log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
-                        file_name='reply_exception.pv')
+                        file_name='exception-reply.pv')
                     try:
                         replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
                         log('\n\n[Page source]\n' + replies_err_soup.prettify(),
-                            file_name='reply_exception.pv')
+                            file_name='exception-reply.pv')
                     except Exception as scan_exception:
                         log('Error: Failed to load page source %s(%s)' % (thread_id, scan_exception), has_tst=True)
                 sum_reply_count_to_scan += reply_count_to_scan
@@ -355,7 +354,7 @@ def loop_scanning():
             last_cycled_time = datetime.now()
         # Sufficient cycles have been conducted and pause is large: Finish the session.
         session_elapsed_minutes = common.get_elapsed_sec(session_start_time) / 60
-        log('\n%dth cycle finished in %d minutes. Close the browser session.' %
+        log('\n%d cycles finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
         # Trim the database.
         deleted_count = thread_db.delete_old_threads()
@@ -390,7 +389,7 @@ if __name__ == "__main__":
             loop_scanning()
         except selenium.common.exceptions.WebDriverException as e:
             log('Error: Cannot operate WebDriver(WebDriverException).', has_tst=True)
-            log(traceback.format_exc(), 'WebDriverException.pv')
+            log(traceback.format_exc(), 'exception-webdriver.pv')
             time.sleep(fluctuate(210))  # Assuming the server is not operating.
         except Exception as main_loop_exception:
             log('Error: Cannot retrieve thread list(%s).' % main_loop_exception, has_tst=True)
