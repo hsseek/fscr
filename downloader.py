@@ -148,7 +148,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         if not target_tag:  # Empty
             if '/?err=1";' in soup.select_one('script').text:
                 # ?err=1 redirects to "이미지가 삭제된 주소입니다."
-                log('Sorry, cannot download %s quoted at #%s.' % (int_index, reply_no), has_tst=True)
+                log('Sorry, cannot download %s quoted at #%d.' % (int_index, reply_no), has_tst=True)
                 log('[ - ] <- %.f" \t<- %.f"\t: %s #%d  \t-!->\t%s' %
                     (prev_pause, prev_prev_pause, thread_url, reply_no, int_index),
                     file_name=Constants.DL_LOG_FILE, has_tst=True)
@@ -158,7 +158,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             target_url = target_tag['href']  # url of the file to download
             imgdb_link_category, imgdb_link_extension = retrieve_content_type(target_url)
             if imgdb_link_category != 'image':
-                log('Error: %s is not an image(quoted at #%s).' % (source_url, reply_no), has_tst=True)
+                log('Error: %s is not an image(quoted at #%d).' % (source_url, reply_no), has_tst=True)
             local_name = '%s-%03d-%s.%s' % (int_index, reply_no, thread_no, imgdb_link_extension)
             return target_url, local_name
 
@@ -241,7 +241,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
             if soup.select_one('div.page-not-found'):
-                log('Error: Cannot download imgbb link quoted in %s #%s.' % (thread_no, reply_no), has_tst=True)
+                log('Error: Cannot download imgbb link quoted at #%d.' % reply_no, has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
         else:  # The image link tag present
@@ -258,15 +258,15 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             return target_url, local_name
 
     elif domain == 'tmpfiles.org':
-        log('Warning: Unusual upload on %s: tmpfiles.org.' % thread_url)
+        log('Warning: Unusual upload at #%d: tmpfiles.org.' % reply_no)
     elif domain == 'sendvid.com':
-        log('Warning: Unusual upload on %s: sendvid.org.' % thread_url)
+        log('Warning: Unusual upload at #%d: sendvid.org.' % reply_no)
     elif domain == 'freethread.net':
-        log('%s quoted in %s.' % (source_url, thread_url))
+        log('%s quoted at #%d.' % (source_url, reply_no))
     elif domain == 'image.kilho.net':
-        log("Warning: 'image.kilho.net' quoted in %s." % thread_url)
+        log("Warning: 'image.kilho.net' quoted at #%d." % reply_no)
     else:
-        log('Warning: Unknown source on %s.(%s)' % (thread_url, source_url))
+        log('Warning: Unknown source at #%d.(%s)' % (reply_no, source_url))
 
 
 def retrieve_content_type(target_url):

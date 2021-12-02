@@ -97,7 +97,7 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
     else:  # Need to scan replies as well.
         is_loaded = wait_and_retry(browser_wait, 'thread-reply')
         if not is_loaded:
-            log('Error: Cannot scan replies. (%s)' % thread_url)
+            log('Error: Cannot scan replies after %.f". (%s)' % (prev_pause, thread_url))
             log_page_source(file_name='replies-error.pv')
             return  # Cannot load the page, noting to do.
         # Get the thread list and the scanning targets(the new replies)
