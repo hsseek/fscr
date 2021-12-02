@@ -38,7 +38,6 @@ def initiate_browser():
     options = webdriver.ChromeOptions()
     options.add_argument('headless')
     # options.add_argument('disable-gpu')
-    # options.add_experimental_option("detach", True)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
@@ -74,16 +73,18 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
 
 
 def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
+    # Open the page to scan
+    thread_url = common.get_thread_url(thread_no)
+    browser.get(thread_url)
+
     is_privileged = check_privilege(browser)
     if not is_privileged:
         # Possibly banned for abuse. Cool down.
         time.sleep(fluctuate(340))
         return
-
-    # Open the page to scan
-    thread_url = common.get_thread_url(thread_no)
-    if browser.current_url != thread_url:
+    elif browser.current_url != thread_url:
         browser.get(thread_url)
+
     is_scan_head_only = True if scan_count == 1 and is_new_thread else False
     if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
         is_loaded = wait_and_retry(browser_wait, 'th-contents')
