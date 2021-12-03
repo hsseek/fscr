@@ -28,12 +28,12 @@ class Constants:
     MAX_SCANNING_COUNT_PER_SESSION = 420
     PAUSE_IDLE = 600.0
     PAUSE_POWER = 3.5
-    PAUSE_MULTIPLIER = 2
+    PAUSE_MULTIPLIER = 1.6
     HOT_THRESHOLD_SEC = 90
 
 
 def initiate_browser():
-    # A chrome web driver with headless option
+    # A Chrome web driver with headless option
     service = Service(common.Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_argument('headless')
@@ -156,7 +156,7 @@ def __compose_content_report(reply):
             if content.has_attr('href'):
                 message += content['href'].strip() + " "
             elif 'class' in content.attrs and content.attrs['class'][0] == 'anchor':
-                message += content.contents[-1].strip() + " "
+                message += content.string.strip() + " "
             elif content == '<br/>' or '<br>':
                 message += '\n'
             else:
@@ -169,7 +169,7 @@ def __compose_content_report(reply):
 def fluctuate(value):
     # Large values: The random multiplier dominant
     # Small values: The random increment dominant
-    return value * random.uniform(1.0, 1.25) + random.uniform(0.6, 2.4)
+    return value * random.uniform(1.0, 1.2) + random.uniform(0.6, 2.4)
 
 
 # A proper pause in seconds based on the count of new replies
