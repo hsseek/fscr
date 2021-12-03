@@ -4,7 +4,7 @@ import traceback
 
 import selenium.common.exceptions
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
+# from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
@@ -34,11 +34,11 @@ class Constants:
 
 def initiate_browser():
     # A Chrome web driver with headless option
-    service = Service(common.Constants.DRIVER_PATH)
+    # service = Service(common.Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_argument('headless')
     # options.add_argument('disable-gpu')
-    driver = webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(executable_path=common.Constants.DRIVER_PATH, options=options)
     return driver
 
 
