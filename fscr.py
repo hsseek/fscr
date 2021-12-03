@@ -281,20 +281,23 @@ def check_privilege(driver: webdriver.Chrome):
 
 
 def load_thread_list():
+    thread_list_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH
+    # Get the thread list.
+    browser.get(thread_list_url)
     is_privileged = check_privilege(browser)
     if not is_privileged:
         # Possibly banned for abuse. Cool down.
         time.sleep(fluctuate(340))
         return
+    elif browser.current_url != thread_list_url:
+        browser.get(thread_list_url)
 
     # Reset the reply count.
     new_reply_count = 0
 
-    # Get the thread list.
-    browser.get(common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH)
     is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
     if not is_threads_loaded:
-        log('Error: Cannot load thread list after pause of %d.' % prev_pause, has_tst=True)
+        log('Error: Cannot load thread list after pause of %d".' % prev_pause, has_tst=True)
         log('Page source\n\n' + browser.page_source, file_name='thread-list-err.pv')
         # Cool down and loop again.
         time.sleep(fluctuate(12))
