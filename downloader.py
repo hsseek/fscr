@@ -5,7 +5,6 @@ import traceback
 
 import selenium.common.exceptions
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
@@ -28,8 +27,8 @@ def log(message: str, file_name: str = common.Constants.LOG_FILE, has_tst: bool 
 
 
 def initiate_browser():
-    # A chrome web driver with headless option
-    service = Service(common.Constants.DRIVER_PATH)
+    # A Chrome web driver with headless option
+    # service = Service(common.Constants.DRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_experimental_option("prefs", {
         "download.default_directory": Constants.TMP_DOWNLOAD_PATH,
@@ -37,7 +36,7 @@ def initiate_browser():
     })
     options.add_argument('headless')
     # options.add_argument('disable-gpu')
-    driver = webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(executable_path=common.Constants.DRIVER_PATH, options=options)
     return driver
 
 
@@ -199,8 +198,10 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             is_dl_successful = wait_finish_downloading(Constants.TMP_DOWNLOAD_PATH, 210)
             if is_dl_successful:
                 for file_name in os.listdir(Constants.TMP_DOWNLOAD_PATH):
-                    os.rename(Constants.TMP_DOWNLOAD_PATH + file_name, Constants.DESTINATION_PATH + file_name)
-                    log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
+                    formatted_file_name = '%s-%s-%03d-%s' %\
+                                          (domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
+                    os.rename(Constants.TMP_DOWNLOAD_PATH + file_name, Constants.DESTINATION_PATH + formatted_file_name)
+                    log("%s" % (Constants.DUMP_PATH + formatted_file_name), has_tst=True)
                     log('[ V ] <- %.f" \t<- %.f"\t: %s #%d  \t->  \t%s'
                         % (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
                         file_name=Constants.DL_LOG_FILE)
@@ -249,12 +250,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             target_url = target_tag['src']
             file_name = common.split_on_last_pattern(target_url, '/')[-1]
 
-            # Try retrieving the views.
-            view_tag = soup.select_one('div.content-width > div.header > div.header-content-right > div')
-            view = int(view_tag.next_element) if view_tag else 0
-
-            local_name = '%s-%s-%03d-%02d-%s' % (
-                'ibb', thread_no, reply_no, view, __format_file_name(file_name))
+            local_name = '%s-%s-%02d-%s' % ('ibb', thread_no, reply_no, __format_file_name(file_name))
             return target_url, local_name
 
     elif domain == 'tmpfiles.org':
