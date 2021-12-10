@@ -132,9 +132,12 @@ def download(source_url: str, thread_no: int, reply_no: int, prev_pause: float, 
 def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                               prev_pause: float, prev_prev_pause: float) -> ():
     thread_url = common.get_thread_url(thread_no)  # The url of the thread quoting the source
-    source_category, source_extension = retrieve_content_type(source_url)
-    if source_category == 'image':
-        return source_url, '%d-%03d.%s' % (thread_no, reply_no, source_extension)
+    try:
+        source_category, source_extension = retrieve_content_type(source_url)
+        if source_category == 'image':
+            return source_url, '%d-%03d.%s' % (thread_no, reply_no, source_extension)
+    except Exception as header_exception:
+        log('Error: The source has a wrong header.(%s)' % header_exception)
 
     domain = urlparse(source_url).netloc.replace('www', '')
 
@@ -266,4 +269,8 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
 
 
 def retrieve_content_type(target_url):
-    return requests.session().get(target_url).headers['Content-Type'].split('/')
+    session = requests.Session()
+    headers = session.get(target_url).headers['Content-Type'].split('/')
+    session.close()
+    return headers
+

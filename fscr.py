@@ -74,7 +74,7 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
 
 def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
     # Open the page to scan
-    thread_url = common.get_thread_url(thread_no)
+    thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads.
     browser.get(thread_url)
 
     is_privileged = check_privilege(browser)
