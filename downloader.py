@@ -167,6 +167,9 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
         if source_url.strip('/').endswith(domain):
             return  # Referring the website itself, instead of a downloadable source.
+        elif (domain + '/success' in source_url) or (domain + '/delete' in source_url):
+            return  # Not a downloadable link.
+
         download_btn_xpath = '/html/body/div[2]/div/p/a'
         submit_btn_xpath = '/html/body/div[1]/div/form/p/input'
         pw_input_id = 'password'
