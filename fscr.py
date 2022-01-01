@@ -26,9 +26,7 @@ class Constants:
     # For the same or increasing number of new replies
     MIN_SCANNING_COUNT_PER_SESSION = 100
     MAX_SCANNING_COUNT_PER_SESSION = 420
-    PAUSE_IDLE = 600.0
-    PAUSE_POWER = 3.5
-    PAUSE_MULTIPLIER = 1.4
+    PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER = common.build_float_tuple('PAUSE.pv')
     HOT_THRESHOLD_SEC = 90
 
 

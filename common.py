@@ -12,6 +12,18 @@ def build_tuple(path: str):
     return tuple(content.split('\n'))
 
 
+def build_float_tuple(path: str):
+    content = read_from_file(path)
+    float_list = []
+    for element in content.split('\n'):
+        try:
+            float_list.append(float(element))
+        except ValueError:
+            print('Error: %s is not a number, adding 0.' % element)
+            float_list.append(0.0)
+    return tuple(float_list)
+
+
 def get_time_str():
     return str(datetime.now()).split('.')[0]
 
