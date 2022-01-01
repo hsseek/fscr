@@ -28,6 +28,7 @@ class Constants:
     MAX_SCANNING_COUNT_PER_SESSION = 420
     PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER = common.build_float_tuple('PAUSE.pv')
     IGNORED_TITLE_PATTERNS = common.build_tuple('IGNORED_TITLE_PATTERNS.pv')
+    IGNORED_REPLY_PATTERNS = common.build_tuple('IGNORED_REPLY_PATTERNS.pv')
     HOT_THRESHOLD_SEC = 90
 
 
@@ -118,9 +119,14 @@ def scan_head(replies_soup, thread_no, thread_url):
     links_in_head = head.select('a.link')
     if links_in_head:  # Link(s) present in the head
         log(compose_reply_report(replies_soup, thread_url, head, 1))
-        for link in links_in_head:
-            source_url = link['href']
-            downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
+        # Check if the reply contains ignored patterns.
+        ignored_pattern = has_ignored_content(head)
+        if ignored_pattern:
+            log('(Skipping "%s")' % ignored_pattern)
+        else:
+            for link in links_in_head:
+                source_url = link['href']
+                downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
 
 
 def scan_content(replies_soup, reply, thread_no, thread_url):
@@ -131,9 +137,26 @@ def scan_content(replies_soup, reply, thread_no, thread_url):
         reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
         reply_no = int(reply_no_str.strip().replace('#', ''))
         log(compose_reply_report(replies_soup, thread_url, reply, reply_no))
-        for link in links_in_reply:
-            source_url = link['href']
-            downloader.download(source_url, thread_no, int(reply_no), prev_pause, prev_prev_pause)
+        # Check if the reply contains ignored patterns.
+        ignored_pattern = has_ignored_content(reply)
+        if ignored_pattern:
+            log('(Skipping "%s")' % ignored_pattern)
+        else:
+            for link in links_in_reply:
+                source_url = link['href']
+                downloader.download(source_url, thread_no, int(reply_no), prev_pause, prev_prev_pause)
+
+
+def has_ignored_content(reply):
+    for content in reply.select_one('div.th-contents').contents:
+        if isinstance(content, bs4.element.Tag):  # The content has a substructure.
+            continue
+        else:  # A simple text element
+            for pattern in Constants.IGNORED_REPLY_PATTERNS:
+                if pattern in content:
+                    return pattern
+    else:
+        return None
 
 
 def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
