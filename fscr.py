@@ -27,6 +27,7 @@ class Constants:
     MIN_SCANNING_COUNT_PER_SESSION = 100
     MAX_SCANNING_COUNT_PER_SESSION = 420
     PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER = common.build_float_tuple('PAUSE.pv')
+    IGNORED_TITLE_PATTERNS = common.build_tuple('IGNORED_TITLE_PATTERNS.pv')
     HOT_THRESHOLD_SEC = 90
 
 
@@ -175,55 +176,64 @@ def get_absolute_pause(new_reply_count: int):
     return Constants.PAUSE_IDLE / ((new_reply_count ** Constants.PAUSE_POWER) + 1)
 
 
+# Get how many replies have been uploaded since the last check.
+# If new replies exist, scan the thread.
 def __scan_threads(soup) -> int:
     global thread_db
     sum_reply_count_to_scan = 0
     for thread in soup.select('a.thread-list-item'):
-        # Get how many threads have been uploaded since the last check.
         thread_id = int(str(thread['href']).split('/')[-1])
-        # Don't bother if the thread has been finished.
-        if thread_id not in finished_thread_ids:
-            row_count = thread.select_one('span.count').string
-            if str(row_count).isdigit():
-                count = int(row_count)  # Must be a natural number.
-            else:  # The count string is not digit. An irregular row.
-                thread_title = thread.select_one('span.title').string
-                thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
-                # Add to finished list, as it does not need scanning further.
-                finished_thread_ids.append(thread_id)
-                if row_count == '완결':
-                    log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
-                    count = int(300)
-                elif '닫힘' in row_count:
-                    thread_title = thread.select_one('span.title').string
-                    log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
-                    # Try full scanning and copy the page source.
-                    count = 24
-                    copy_replies(thread_url)
-                else:
-                    log('Error: Unexpected parameter for reply count(%s) for <%s>.\t(%s)\n(%s)' %
-                        (row_count, thread_title, common.get_time_str(), thread_url))
-                    count = 24
-                    copy_replies(thread_url)
+        # Filter threads.
+        # 1. Don't bother if the thread has been finished.
+        if thread_id in finished_thread_ids:
+            continue
+        # 2. Filter by titles.
+        thread_title = thread.select_one('span.title').string
+        for pattern in Constants.IGNORED_TITLE_PATTERNS:
+            if pattern in thread_title:
+                continue
 
-            # Check if the count has been increased.
-            # If so, scan to check if there are links.
-            reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
-            if reply_count_to_scan > 0:
+        row_count = thread.select_one('span.count').string
+        if str(row_count).isdigit():
+            count = int(row_count)  # Must be a natural number.
+        else:  # The count string is not digit. An irregular row.
+            thread_title = thread.select_one('span.title').string
+            thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
+            # Add to finished list, as it does not need scanning further.
+            finished_thread_ids.append(thread_id)
+            if row_count == '완결':
+                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
+                count = int(300)
+            elif '닫힘' in row_count:
+                thread_title = thread.select_one('span.title').string
+                log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
+                # Try full scanning and copy the page source.
+                count = 24
+                copy_replies(thread_url)
+            else:
+                log('Error: Unexpected parameter for reply count(%s) for <%s>.\t(%s)\n(%s)' %
+                    (row_count, thread_title, common.get_time_str(), thread_url))
+                count = 24
+                copy_replies(thread_url)
+
+        # Check if the count has been increased.
+        # If so, scan to check if there are links.
+        reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
+        if reply_count_to_scan > 0:
+            try:  # Finally, scan replies.
+                scan_replies(thread_id, reply_count_to_scan, is_new_thread)
+            except Exception as reply_exception:
+                exception_last_line = str(reply_exception).splitlines()[-1]
+                log('Error: Reply scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
+                log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
+                    file_name='exception-reply.pv')
                 try:
-                    scan_replies(thread_id, reply_count_to_scan, is_new_thread)
-                except Exception as reply_exception:
-                    exception_last_line = str(reply_exception).splitlines()[-1]
-                    log('Error: Reply scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
-                    log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
+                    replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+                    log('\n\n[Page source]\n' + replies_err_soup.prettify(),
                         file_name='exception-reply.pv')
-                    try:
-                        replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-                        log('\n\n[Page source]\n' + replies_err_soup.prettify(),
-                            file_name='exception-reply.pv')
-                    except Exception as scan_exception:
-                        log('Error: Failed to load page source %s(%s)' % (thread_id, scan_exception), has_tst=True)
-                sum_reply_count_to_scan += reply_count_to_scan
+                except Exception as scan_exception:
+                    log('Error: Failed to load page source %s(%s)' % (thread_id, scan_exception), has_tst=True)
+            sum_reply_count_to_scan += reply_count_to_scan
 
     return sum_reply_count_to_scan
 
