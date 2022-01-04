@@ -26,7 +26,7 @@ class Constants:
     # For the same or increasing number of new replies
     MIN_SCANNING_COUNT_PER_SESSION = 100
     MAX_SCANNING_COUNT_PER_SESSION = 420
-    PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER = common.build_float_tuple('PAUSE.pv')
+    PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER_SMALL, PAUSE_MULTIPLIER_LARGE = common.build_float_tuple('PAUSE.pv')
     IGNORED_TITLE_PATTERNS = common.build_tuple('IGNORED_TITLE_PATTERNS.pv')
     IGNORED_REPLY_PATTERNS = common.build_tuple('IGNORED_REPLY_PATTERNS.pv')
     HOT_THRESHOLD_SEC = 90
@@ -341,7 +341,8 @@ def load_thread_list():
 
 
 def impose_pause(new_reply_count: int, elapsed_sec: float):
-    recurrence_pause = prev_pause * Constants.PAUSE_MULTIPLIER
+    recurrence_pause = prev_pause * Constants.PAUSE_MULTIPLIER_SMALL if new_reply_count > 0\
+        else prev_pause * Constants.PAUSE_MULTIPLIER_LARGE
     pause = min(recurrence_pause, get_absolute_pause(new_reply_count))
     fluctuated_pause = fluctuate(pause)
     pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
