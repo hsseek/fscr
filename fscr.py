@@ -350,10 +350,9 @@ def impose_pause(new_reply_count: int, elapsed_sec: float):
     pause_status_str = '%1.f(%1.f)' % (pause, fluctuated_pause)
     pause_status_str += '\t' if pause >= 100 else ' \t'  # For visual alignment
     current_session_span = elapsed_sec + prev_pause
-    print('%1.f\t= %.1f\t+ (%1.f)\t' % (current_session_span, elapsed_sec, prev_pause)
-          + str(new_reply_count) + ' new\t'
-          + '(H: %.1f)\t' % (100 * new_reply_count / current_session_span / (pause + 0.0001))
-          + '-> %s' % pause_status_str
+    print('%1.f\t= %.1f +\t(%1.f)\t' % (current_session_span, elapsed_sec, prev_pause)
+          + str(new_reply_count) + ' new -> \t'
+          + '%s' % pause_status_str
           + '%s' % common.get_time_str())
     return pause, fluctuated_pause
 
