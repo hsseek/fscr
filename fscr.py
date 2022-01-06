@@ -75,7 +75,7 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
 
 def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
     # Open the page to scan
-    thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/test.html'
+    thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
     browser.get(thread_url)
 
     is_privileged = check_privilege(browser)
@@ -207,6 +207,8 @@ def __scan_threads(soup) -> int:
     sum_reply_count_to_scan = 0
     for thread in soup.select('a.thread-list-item'):
         thread_id = int(str(thread['href']).split('/')[-1])
+        thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
+
         # Filter threads.
         # 1. Don't bother if the thread has been finished.
         if thread_id in finished_thread_ids:
@@ -222,7 +224,6 @@ def __scan_threads(soup) -> int:
             count = int(row_count)  # Must be a natural number.
         else:  # The count string is not digit. An irregular row.
             thread_title = thread.select_one('span.title').string
-            thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
             # Add to finished list, as it does not need scanning further.
             finished_thread_ids.append(thread_id)
             if row_count == '완결':
@@ -246,6 +247,8 @@ def __scan_threads(soup) -> int:
         if reply_count_to_scan > 0:
             try:  # Finally, scan replies.
                 scan_replies(thread_id, reply_count_to_scan, is_new_thread)
+                if reply_count_to_scan >= 24:
+                    log('\nWarning: Many new replies on %s' % thread_url, has_tst=True)
             except Exception as reply_exception:
                 exception_last_line = str(reply_exception).splitlines()[-1]
                 log('Error: Reply scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)

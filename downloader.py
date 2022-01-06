@@ -276,4 +276,3 @@ def retrieve_content_type(target_url):
     headers = session.get(target_url).headers['Content-Type'].split('/')
     session.close()
     return headers
-

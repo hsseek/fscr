@@ -11,10 +11,6 @@ class Table:
 
 class ThreadDatabase:
     def __init__(self):
-        def read_from_file(path: str):
-            with open(path) as f:
-                return f.read().strip('\n')
-
         user, pw, db_name = common.build_tuple('DB_INFO.pv')
 
         self.database = mysql.connector.connect(
@@ -70,12 +66,12 @@ class ThreadDatabase:
 
     def delete_old_threads(self) -> int:
         cursor = self.database.cursor()
-        select_query = "SELECT %s FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 14 DAY)" % \
+        select_query = "SELECT %s FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 70 DAY)" % \
                        (Table.ID, Table.NAME, Table.LAST_UPLOADED_AT)
         cursor.execute(select_query)
         counts = len(cursor.fetchall())
 
-        delete_query = "DELETE FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 14 DAY)" % \
+        delete_query = "DELETE FROM %s WHERE %s < DATE_SUB(NOW(), INTERVAL 70 DAY)" % \
                        (Table.NAME, Table.LAST_UPLOADED_AT)
         cursor.execute(delete_query)
         self.database.commit()
@@ -108,7 +104,6 @@ class ThreadDatabase:
                 return int(result[0][0])
             except Exception as e:
                 print("The count of the thread undefined: " + str(e))
-                # 아무것도 return 하지 않으면 get_count() 에서 값 받아야 하는 함수는 어떻게 거동?: return None
                 return 0
 
     def fetch_finished(self) -> []:
