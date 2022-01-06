@@ -212,12 +212,16 @@ def __scan_threads(soup) -> int:
         # Filter threads.
         # 1. Don't bother if the thread has been finished.
         if thread_id in finished_thread_ids:
-            continue
+            continue  # Skip the thread.
         # 2. Filter by titles.
         thread_title = thread.select_one('span.title').string
+        has_pattern = False
         for pattern in Constants.IGNORED_TITLE_PATTERNS:
             if pattern in thread_title:
-                continue
+                has_pattern = True
+                break
+        if has_pattern:
+            continue  # Skip the thread.
 
         row_count = thread.select_one('span.count').string
         if str(row_count).isdigit():
