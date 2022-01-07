@@ -30,7 +30,7 @@ class Constants:
         = common.build_float_tuple('PAUSE.pv')
     IGNORED_TITLE_PATTERNS = common.build_tuple('IGNORED_TITLE_PATTERNS.pv')
     IGNORED_REPLY_PATTERNS = common.build_tuple('IGNORED_REPLY_PATTERNS.pv')
-    HOT_THRESHOLD_SEC = 90
+    HOT_THRESHOLD_SEC = 200
 
 
 def initiate_browser():
@@ -444,6 +444,6 @@ if __name__ == "__main__":
             thread_db.close_connection()
             log('SQL connection closed.', has_tst=True)
 
-        session_pause = fluctuate(Constants.HOT_THRESHOLD_SEC)
+        session_pause = Constants.HOT_THRESHOLD_SEC * random.uniform(0.46, 1.2)
         log('Pause for %.1f min.\t(%s)\n' % (session_pause/60, common.get_time_str()))
         time.sleep(session_pause)
