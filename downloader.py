@@ -76,24 +76,42 @@ def __convert_webp_to_png(stored_dir, filename):
     os.remove(stored_path)
 
 
+def __check_tmp_download(dir_path: str) -> bool:
+    tmp_extension = 'crdownload'
+    for file_name in os.listdir(dir_path):
+        if tmp_extension in file_name:
+            return True
+    else:
+        return False
+
+
 def wait_finish_downloading(temp_dir_path: str, timeout: int):
     seconds = 0
     check_interval = 2
 
     last_size = 0
+    consecutive_stalling = 0
+
     while seconds <= timeout:
         current_size = sum(os.path.getsize(f) for f in glob(temp_dir_path + '*') if os.path.isfile(f))
-        if current_size == last_size and last_size > 0:
-            return True
-        print('Waiting to finish downloading. (%d/%d)' % (seconds, timeout))
+        if current_size == last_size and current_size > 0:
+            if not __check_tmp_download(temp_dir_path):  # Size not increasing because the download has been finished.
+                return True
+            elif consecutive_stalling < 8:  # .crdownload file exists.
+                print('Downloading stalled. (%d/%d)' % (seconds, timeout))
+                consecutive_stalling += 1
+            else:
+                log('Warning: Download progress stopped.')
+                return False
         # Report
         if current_size != last_size:
             print('%.1f -> %.1f MB' % (last_size / 1000000, current_size / 1000000))
         # Wait
         time.sleep(check_interval)
         seconds += check_interval
-        last_size = current_size
-    print('Download timeout reached.')
+        if last_size != current_size:
+            last_size = current_size
+    log('Download timeout reached.')
     return False  # Timeout
 
 
@@ -201,7 +219,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                         print('Error: Incorrect password %s(%s).' % (password, e))
             common.check_dir_exists(Constants.TMP_DOWNLOAD_PATH)
             tmp_browser.find_element(By.XPATH, download_btn_xpath).click()
-            is_dl_successful = wait_finish_downloading(Constants.TMP_DOWNLOAD_PATH, 210)
+            is_dl_successful = wait_finish_downloading(Constants.TMP_DOWNLOAD_PATH, 280)
             if is_dl_successful:
                 for file_name in os.listdir(Constants.TMP_DOWNLOAD_PATH):
                     formatted_file_name = '%s-%s-%03d-%s' %\
