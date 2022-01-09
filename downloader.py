@@ -18,8 +18,8 @@ import time
 
 class Constants:
     DL_LOG_FILE = 'log-dl.pv'
-    DL_DESTINATION_PATH, DL_TMP_PATH = common.build_tuple('DOWNLOAD_DESTINATION_PATH.pv')
-    DL_BACKUP_PATH = common.read_from_file('DOWNLOAD_BACKUP_PATH.pv')
+    DL_DESTINATION_PATH, DL_TMP_PATH = common.build_tuple('DL_DESTINATION_PATH.pv')
+    DL_BACKUP_PATH = common.read_from_file('DL_BACKUP_PATH.pv')
     DUMP_PATH = common.read_from_file('DUMP_PATH.pv')
     PASSWORDS = common.build_tuple('PASSWORD_CANDIDATES.pv')
 
