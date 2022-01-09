@@ -12,6 +12,7 @@ import bs4
 from bs4 import BeautifulSoup
 import random
 from datetime import datetime
+import re
 import sqlite
 import downloader
 
@@ -130,14 +131,27 @@ def scan_head(replies_soup, thread_no, thread_url):
                 downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
 
 
+def has_specs(reply) -> bool:
+    for content in reply.select_one('div.th-contents'):
+        if not isinstance(content, bs4.element.Tag):  # Plain text
+            if re.search("1[4-9].*[0-9]{2}", content.text):
+                return True
+    else:
+        return False
+
+
 def scan_content(replies_soup, reply, thread_no, thread_url):
     global prev_pause, prev_prev_pause
     links_in_reply = reply.select('div.th-contents > a.link')
-    if links_in_reply:  # Link(s) present in the reply
+    spec_present = has_specs(reply)
+    if links_in_reply or spec_present:
         # Retrieve the reply information.
         reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
         reply_no = int(reply_no_str.strip().replace('#', ''))
         log(compose_reply_report(replies_soup, thread_url, reply, reply_no))
+        if spec_present:
+            log('(Specs present)')
+
         # Check if the reply contains ignored patterns.
         ignored_pattern = has_ignored_content(reply)
         if ignored_pattern:
