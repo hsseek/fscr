@@ -18,7 +18,7 @@ import downloader
 
 
 class Constants:
-    HTML_TIMEOUT = 40
+    HTML_TIMEOUT = 25
 
     # Credentials
     EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
@@ -102,7 +102,6 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
         if not is_loaded:
             log('Error: Cannot scan replies after %.f". (%s)' % (prev_pause, thread_url))
             log_page_source(file_name='replies-error.pv')
-            return  # Cannot load the page, noting to do.
         # Get the thread list and the scanning targets(the new replies)
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         replies = replies_soup.select('div.thread-reply')
