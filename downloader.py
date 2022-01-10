@@ -300,7 +300,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
     elif domain == 'sendvid.com':
         log('Warning: Unusual upload at #%d: sendvid.org.' % reply_no)
     elif domain == 'freethread.net':
-        log('%s quoted at #%d.' % (source_url, reply_no))
+        print('%s quoted at #%d.' % (source_url, reply_no))
     elif domain == 'image.kilho.net':
         log("Warning: 'image.kilho.net' quoted at #%d." % reply_no)
     else:

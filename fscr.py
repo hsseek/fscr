@@ -49,13 +49,13 @@ def log(message: str, file_name: str = common.Constants.LOG_FILE, has_tst: bool 
     common.log(message, log_path=common.Constants.LOG_PATH + file_name, has_tst=has_tst)
 
 
-def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, visibility_of_all: bool = False):
+def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, presence_of_all: bool = False):
     for i in range(max_trial):
         try:
-            if visibility_of_all:
-                wait.until(expected_conditions.visibility_of_all_elements_located((By.CLASS_NAME, class_name)))
+            if presence_of_all:
+                wait.until(expected_conditions.presence_of_element_located((By.CLASS_NAME, class_name)))
             else:
-                wait.until(expected_conditions.visibility_of_element_located((By.CLASS_NAME, class_name)))
+                wait.until(expected_conditions.presence_of_all_elements_located((By.CLASS_NAME, class_name)))
             return True
         except selenium.common.exceptions.TimeoutException:
             log('Warning: Timeout waiting %s' % class_name)
@@ -285,7 +285,7 @@ def __scan_threads(soup) -> int:
 
 def copy_replies(url: str):
     browser.get(url)
-    is_loaded = wait_and_retry(browser_wait, 'thread-reply', visibility_of_all=True)
+    is_loaded = wait_and_retry(browser_wait, 'thread-reply', presence_of_all=True)
     if not is_loaded:
         log('Error: Cannot scan the replies while trying to copy them. (%s)' % url)
         log_page_source(file_name='copy-replies-error.pv')
@@ -348,7 +348,7 @@ def load_thread_list():
     # Reset the reply count.
     new_reply_count = 0
 
-    is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', visibility_of_all=True)
+    is_threads_loaded = wait_and_retry(browser_wait, 'thread-list-item', presence_of_all=True)
     if not is_threads_loaded:
         log('Error: Cannot load thread list after pause of %d".' % prev_pause, has_tst=True)
         log('Page source\n\n' + browser.page_source, file_name='thread-list-err.pv')
