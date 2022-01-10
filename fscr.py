@@ -115,12 +115,25 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
             scan_content(replies_soup, reply, thread_no, thread_url)
 
 
+def has_specs(reply) -> bool:
+    for content in reply.select_one('div.th-contents'):
+        if not isinstance(content, bs4.element.Tag):  # Plain text
+            if re.search("1[4-8].+[1-9][0-9]", content.text):
+                return True
+    else:
+        return False
+
+
 def scan_head(replies_soup, thread_no, thread_url):
     global prev_pause, prev_prev_pause
     head = replies_soup.select_one('div.thread-first-reply')
     links_in_head = head.select('a.link')
-    if links_in_head:  # Link(s) present in the head
+    spec_present = has_specs(head)
+    if links_in_head or spec_present:  # Link(s) present in the head
         log(compose_reply_report(replies_soup, thread_url, head, 1))
+        if spec_present:
+            log('(Specs present)')
+
         # Check if the reply contains ignored patterns.
         ignored_pattern = has_ignored_content(head)
         if ignored_pattern:
@@ -129,15 +142,6 @@ def scan_head(replies_soup, thread_no, thread_url):
             for link in links_in_head:
                 source_url = link['href']
                 downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
-
-
-def has_specs(reply) -> bool:
-    for content in reply.select_one('div.th-contents'):
-        if not isinstance(content, bs4.element.Tag):  # Plain text
-            if re.search("1[4-8].+[1-9][0-9]", content.text):
-                return True
-    else:
-        return False
 
 
 def scan_content(replies_soup, reply, thread_no, thread_url):
