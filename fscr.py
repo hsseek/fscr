@@ -18,7 +18,7 @@ import downloader
 
 
 class Constants:
-    HTML_TIMEOUT = 15
+    HTML_TIMEOUT = 40
 
     # Credentials
     EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
@@ -41,6 +41,7 @@ def initiate_browser():
     options.add_argument('headless')
     # options.add_argument('disable-gpu')
     driver = webdriver.Chrome(executable_path=common.Constants.DRIVER_PATH, options=options)
+    driver.set_page_load_timeout(Constants.HTML_TIMEOUT)
     return driver
 
 
@@ -134,7 +135,7 @@ def scan_head(replies_soup, thread_no, thread_url):
 def has_specs(reply) -> bool:
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
-            if re.search("1[4-9].*[0-9]{2}", content.text):
+            if re.search("1[4-8].+[1-9][0-9]", content.text):
                 return True
     else:
         return False
