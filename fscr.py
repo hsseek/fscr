@@ -23,6 +23,9 @@ class Constants:
     # Credentials
     EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
 
+    # Reply log
+    REPLY_LOG_FILE = 'log_re.pv'
+
     # Variables regarding randomizing the behavior
     # For the same or increasing number of new replies
     MIN_SCANNING_COUNT_PER_SESSION = 100
@@ -94,7 +97,6 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
         if not is_loaded:
             log('Error: Cannot scan the only reply. (%s)' % thread_url)
             log_page_source(file_name='only-reply-error.pv')
-            return  # Cannot load the page, noting to do.
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         scan_head(replies_soup, thread_no, thread_url)
     else:  # Need to scan replies as well.
@@ -129,11 +131,16 @@ def scan_head(replies_soup, thread_no, thread_url):
     head = replies_soup.select_one('div.thread-first-reply')
     links_in_head = head.select('a.link')
     spec_present = has_specs(head)
-    if links_in_head or spec_present:  # Link(s) present in the head
-        log(compose_reply_report(replies_soup, thread_url, head, 1))
-        if spec_present:
-            log('(Specs present)')
 
+    report = compose_reply_report(replies_soup, thread_url, head, 1)
+    if spec_present:
+        report += '\n(Specs present)'
+    # Log every reply.
+    log(report, Constants.REPLY_LOG_FILE, True)
+
+    if links_in_head or spec_present:  # Link(s) present in the head
+        # Log a meaningful reply.
+        log(report)
         # Check if the reply contains ignored patterns.
         ignored_pattern = has_ignored_content(head)
         if ignored_pattern:
@@ -148,13 +155,19 @@ def scan_content(replies_soup, reply, thread_no, thread_url):
     global prev_pause, prev_prev_pause
     links_in_reply = reply.select('div.th-contents > a.link')
     spec_present = has_specs(reply)
+
+    # Retrieve the reply information.
+    reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
+    reply_no = int(reply_no_str.strip().replace('#', ''))
+    report = compose_reply_report(replies_soup, thread_url, reply, reply_no)
+    if spec_present:
+        report += '\n(Specs present)'
+    # Log every reply.
+    log(report, Constants.REPLY_LOG_FILE, True)
+
     if links_in_reply or spec_present:
-        # Retrieve the reply information.
-        reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
-        reply_no = int(reply_no_str.strip().replace('#', ''))
-        log(compose_reply_report(replies_soup, thread_url, reply, reply_no))
-        if spec_present:
-            log('(Specs present)')
+        # Log a meaningful reply.
+        log(report)
 
         # Check if the reply contains ignored patterns.
         ignored_pattern = has_ignored_content(reply)
@@ -182,8 +195,9 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
     double_line = '===================='
     dashed_line = '--------------------'
     thread_title = soup.select_one('div.thread-info > h3.title').next_element
+    user_id = reply.select_one('span.user-id').text
     report = '\n' + double_line + '\n' + \
-             '<%s>  #%d\n' % (thread_title, reply_no) + \
+             '<%s>  #%d  %s\n' % (thread_title, reply_no, user_id) + \
              __compose_content_report(reply) + '\n' + \
              '(%s)\n' % thread_url + \
              dashed_line
