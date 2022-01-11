@@ -24,7 +24,7 @@ class Constants:
     EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
 
     # Reply log
-    REPLY_LOG_FILE = 'log_re.pv'
+    REPLY_LOG_FILE = 'log-re.pv'
 
     # Variables regarding randomizing the behavior
     # For the same or increasing number of new replies
@@ -195,7 +195,17 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
     double_line = '===================='
     dashed_line = '--------------------'
     thread_title = soup.select_one('div.thread-info > h3.title').next_element
-    user_id = reply.select_one('span.user-id').text
+    user_id_tag = reply.select_one('span.user-id')
+    user_name_tag = reply.select_one('span.name')
+    if user_id_tag:
+        user_id = user_id_tag.text
+    elif user_name_tag:
+        user_id = user_name_tag.text
+    else:
+        user_id = ''
+        log('Error: Unknown user_id structure.(%s)' % thread_url)
+        log('\n\n[Page source]\n' + soup.prettify(),
+            file_name='error-reply-user-id.pv')
     report = '\n' + double_line + '\n' + \
              '<%s>  #%d  %s\n' % (thread_title, reply_no, user_id) + \
              __compose_content_report(reply) + '\n' + \
