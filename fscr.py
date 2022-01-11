@@ -120,7 +120,7 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
 def has_specs(reply) -> bool:
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
-            if re.search("1[4-8].+[1-9][0-9]", content.text) or re.search("[6-9][0|5].{0,3}[a-kA-K]", content.text):
+            if re.search("1[4-8].{2,}[1-9][0-9]", content.text) or re.search("[6-9][0|5].{0,3}[a-kA-K]", content.text):
                 return True
     else:
         return False
@@ -197,8 +197,12 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
     thread_title = soup.select_one('div.thread-info > h3.title').next_element
     user_id_tag = reply.select_one('span.user-id')
     user_name_tag = reply.select_one('span.name')
+    both_filled = False
+
     if user_id_tag:
         user_id = user_id_tag.text
+        if user_name_tag:
+            both_filled = True
     elif user_name_tag:
         user_id = user_name_tag.text
     else:
@@ -206,11 +210,10 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
         log('Error: Unknown user_id structure.(%s)' % thread_url)
         log('\n\n[Page source]\n' + soup.prettify(),
             file_name='error-reply-user-id.pv')
-    report = '\n' + double_line + '\n' + \
-             '<%s>  #%d  %s\n' % (thread_title, reply_no, user_id) + \
-             __compose_content_report(reply) + '\n' + \
-             '(%s)\n' % thread_url + \
-             dashed_line
+    header = '\n' + double_line + '\n' + '<%s>\t#%d\t%s' % (thread_title, reply_no, user_id)
+    if both_filled:
+        header += '%s <- Name specified' % user_name_tag.text
+    report = header + '\n' + __compose_content_report(reply) + '\n(%s)\n' % thread_url + dashed_line
     return report
 
 
