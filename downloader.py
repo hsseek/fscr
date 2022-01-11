@@ -96,10 +96,11 @@ def wait_finish_downloading(temp_dir_path: str, timeout: int):
 
     while seconds <= timeout:
         current_size = sum(os.path.getsize(f) for f in glob(temp_dir_path + '*') if os.path.isfile(f))
-        if current_size == last_size and current_size > 0:
-            if not __check_tmp_download(temp_dir_path):  # Size not increasing because the download has been finished.
+        if current_size == last_size:
+            if current_size > 0 and not __check_tmp_download(temp_dir_path):
+                # Size not increasing because the download has been finished.
                 return True
-            elif consecutive_stalling < 8:  # .crdownload file exists.
+            elif consecutive_stalling < 12:  # .crdownload file exists.
                 print('Downloading stalled. (%d/%d)' % (seconds, timeout))
                 consecutive_stalling += 1
             else:
@@ -302,7 +303,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
     elif domain == 'freethread.net':
         print('%s quoted at #%d.' % (source_url, reply_no))
     elif domain == 'image.kilho.net':
-        log("Warning: 'image.kilho.net' quoted at #%d." % reply_no)
+        print("'image.kilho.net' quoted at #%d." % reply_no)
     else:
         log('Warning: Unknown source at #%d.(%s)' % (reply_no, source_url))
 
