@@ -445,13 +445,22 @@ def loop_scanning():
         session_elapsed_minutes = common.get_elapsed_sec(session_start_time) / 60
         log('\n%d cycles finished in %d minutes. Close the browser session.' %
             (current_cycle_number, int(session_elapsed_minutes)))
-        # Trim the database.
-        deleted_count = thread_db.delete_old_threads()
-        if not deleted_count:
-            log('%d threads have been deleted from database.' % deleted_count, has_tst=True)
+        trim_after_session()
     except selenium.common.exceptions.TimeoutException:
         log('Error: Timeout in %.1f min.' % (common.get_elapsed_sec(last_cycled_time) / 60), has_tst=True)
         log(traceback.format_exc(), 'Selenium-Timeout.pv')
+
+
+def trim_after_session():
+    # Trim the database.
+    deleted_count = thread_db.delete_old_threads()
+    if not deleted_count:
+        log('%d threads have been deleted from database.' % deleted_count, has_tst=True)
+
+    # Trim long log files.
+    common.trim_logs(common.Constants.LOG_PATH + Constants.REPLY_LOG_FILE)
+    common.trim_logs(common.Constants.LOG_PATH + common.Constants.LOG_FILE)
+    common.trim_logs(common.Constants.LOG_PATH + downloader.Constants.DL_LOG_FILE)
 
 
 if __name__ == "__main__":

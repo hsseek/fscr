@@ -56,11 +56,28 @@ def log(message: str, log_path: str, has_tst: bool = False):
     dir_path = split_on_last_pattern(log_path, '/')[0]
     check_dir_exists(dir_path)
 
-    with open(log_path, 'a') as f:
+    with open(log_path, 'a') as f_append:
         if has_tst:
             message += '\t(%s)' % get_time_str()
-        f.write(message + '\n')
+        f_append.write(message + '\n')
     print(message)
+
+
+def trim_logs(log_path: str):
+    lines_threshold = 120000
+    old_lines = 30000
+
+    if not os.path.isfile(log_path):
+        print('Warning: The file does not exist.')
+        return
+
+    with open(log_path, 'r') as fin:
+        data = fin.read().splitlines(True)
+        print('%d lines in %s.' % (len(data), log_path))
+    if len(data) > lines_threshold:
+        with open(log_path, 'w') as f_write:
+            f_write.writelines(data[old_lines:])
+            print('Trimmed first %d lines.' % old_lines)
 
 
 class Constants:
