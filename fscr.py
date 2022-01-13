@@ -78,7 +78,7 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
         log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
-def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
+def scan_thread(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
     # Open the page to scan
     thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
     browser.get(thread_url)
@@ -96,14 +96,14 @@ def scan_replies(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fal
         is_loaded = wait_and_retry(browser_wait, 'th-contents')
         if not is_loaded:
             log('Error: Cannot scan the only reply. (%s)' % thread_url)
-            log_page_source(file_name='only-reply-error.pv')
+            log_page_source(file_name='error-only-reply.pv')
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         scan_head(replies_soup, thread_no, thread_url)
     else:  # Need to scan replies as well.
         is_loaded = wait_and_retry(browser_wait, 'thread-reply')
         if not is_loaded:
             log('Error: Cannot scan replies after %.f". (%s)' % (prev_pause, thread_url))
-            log_page_source(file_name='replies-error.pv')
+            log_page_source(file_name='error-replies.pv')
         # Get the thread list and the scanning targets(the new replies)
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         replies = replies_soup.select('div.thread-reply')
@@ -151,32 +151,38 @@ def scan_head(replies_soup, thread_no, thread_url):
                 downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
 
 
-def scan_content(replies_soup, reply, thread_no, thread_url):
-    global prev_pause, prev_prev_pause
-    links_in_reply = reply.select('div.th-contents > a.link')
-    spec_present = has_specs(reply)
+def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
+    try:
+        global prev_pause, prev_prev_pause
+        links_in_reply = reply.select('div.th-contents > a.link')
+        spec_present = has_specs(reply)
 
-    # Retrieve the reply information.
-    reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
-    reply_no = int(reply_no_str.strip().replace('#', ''))
-    report = compose_reply_report(replies_soup, thread_url, reply, reply_no)
-    if spec_present:
-        report += '\n(Specs present)'
-    # Log every reply.
-    log(report, Constants.REPLY_LOG_FILE, True)
+        # Retrieve the reply information.
+        reply_no_str = reply.select_one('div.reply-info > span.reply-offset').text
+        reply_no = int(reply_no_str.strip().replace('#', ''))
+        report = compose_reply_report(replies_soup, thread_url, reply, reply_no)
+        if spec_present:
+            report += '\n(Specs present)'
+        # Log every reply.
+        log(report, Constants.REPLY_LOG_FILE, True)
 
-    if links_in_reply or spec_present:
-        # Log a meaningful reply.
-        log(report)
+        if links_in_reply or spec_present:
+            # Log a meaningful reply.
+            log(report)
 
-        # Check if the reply contains ignored patterns.
-        ignored_pattern = has_ignored_content(reply)
-        if ignored_pattern:
-            log('(Skipping "%s")' % ignored_pattern)
-        else:
-            for link in links_in_reply:
-                source_url = link['href']
-                downloader.download(source_url, thread_no, int(reply_no), prev_pause, prev_prev_pause)
+            # Check if the reply contains ignored patterns.
+            ignored_pattern = has_ignored_content(reply)
+            if ignored_pattern:
+                log('(Skipping "%s")' % ignored_pattern)
+            else:
+                for link in links_in_reply:
+                    source_url = link['href']
+                    downloader.download(source_url, thread_no, int(reply_no), prev_pause, prev_prev_pause)
+    except Exception as reply_exception:
+        log_file_name = 'exception-reply.pv'
+        log('Error: Reply scanning failed on %s.' % thread_url, has_tst=True)
+        log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()), file_name=log_file_name)
+        log('\n\n[Reply source]\n' + reply.prettify(), file_name=log_file_name)
 
 
 def has_ignored_content(reply):
@@ -208,7 +214,7 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
     else:
         user_id = ''
         log('Error: Unknown user_id structure.(%s)' % thread_url)
-        log('\n\n[Page source]\n' + soup.prettify(),
+        log('\n\n[Reply source]\n' + reply.prettify(),
             file_name='error-reply-user-id.pv')
     header = '\n' + double_line + '\n' + '<%s>\t#%d\t%s' % (thread_title, reply_no, user_id)
     if both_filled:
@@ -295,20 +301,16 @@ def __scan_threads(soup) -> int:
         reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
         if reply_count_to_scan > 0:
             try:  # Finally, scan replies.
-                scan_replies(thread_id, reply_count_to_scan, is_new_thread)
+                scan_thread(thread_id, reply_count_to_scan, is_new_thread)
                 if reply_count_to_scan >= 24:
                     log('\nWarning: Many new replies on %s' % thread_url, has_tst=True)
-            except Exception as reply_exception:
-                exception_last_line = str(reply_exception).splitlines()[-1]
-                log('Error: Reply scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
-                log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
-                    file_name='exception-reply.pv')
-                try:
-                    replies_err_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-                    log('\n\n[Page source]\n' + replies_err_soup.prettify(),
-                        file_name='exception-reply.pv')
-                except Exception as scan_exception:
-                    log('Error: Failed to load page source %s(%s)' % (thread_id, scan_exception), has_tst=True)
+            except Exception as thread_exception:
+                log_file_name = 'exception-thread.pv'
+                exception_last_line = str(thread_exception).splitlines()[-1]
+                log('Error: Thread scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
+                log('Exception: %s\n[Traceback]\n%s' % (thread_exception, traceback.format_exc()),
+                    file_name=log_file_name)
+                log_page_source(file_name=log_file_name)
             sum_reply_count_to_scan += reply_count_to_scan
 
     return sum_reply_count_to_scan
