@@ -120,7 +120,11 @@ def scan_thread(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fals
 def has_specs(reply) -> bool:
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
-            if re.search("1[4-8].{2,}[1-9][0-9]", content.text) or re.search("[6-9][0|5].{0,3}[a-kA-K]", content.text):
+            if re.search("[6-9][0|5].{0,3}[a-kA-K]", content.text):
+                return True
+            elif re.search("1[4-7][0-9|noxNOX]", content.text):
+                return True
+            elif re.search("[1-7][0-9|noxNOX]", content.text):
                 return True
     else:
         return False
@@ -350,7 +354,7 @@ def check_privilege(driver: webdriver.Chrome):
     if soup.select_one('.%s' % logged_in_class_name):
         return True
     else:
-        log('Warning: login required.', has_tst=True)
+        log('Login required.', has_tst=True)
         driver.get(common.Constants.ROOT_DOMAIN + common.Constants.LOGIN_PATH)
         # Input the credentials and login
         try:
