@@ -327,31 +327,43 @@ def __scan_threads(soup) -> int:
     return sum_reply_count_to_scan
 
 
-def copy_replies(url: str):
-    browser.get(url)
-    is_loaded = wait_and_retry(browser_wait, 'thread-reply', presence_of_all=True)
-    if not is_loaded:
-        log('Error: Cannot scan the replies while trying to copy them. (%s)' % url)
-        log_page_source(file_name='copy-replies-error.pv')
-        return  # Cannot load the page, noting to do.
-    # Get the thread list and the scanning targets(the new replies)
-    replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-    replies = replies_soup.select('div.thread-reply')
+def copy_replies(thread_url: str):
+    try:
+        browser.get(thread_url)
+        is_loaded = wait_and_retry(browser_wait, 'thread-reply', presence_of_all=True)
+        if not is_loaded:
+            log('Error: Cannot scan the replies while trying to copy them. (%s)' % thread_url)
+            log_page_source(file_name='copy-replies-error.pv')
+        # Get the thread list and the scanning targets(the new replies)
+        replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+        replies = replies_soup.select('div.thread-reply')
 
-    # Compose the report.
-    thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-    report_head = '<%s>\n' % thread_title
-    report_body = ''
-    # Now scan the replies.
-    for reply in replies:
-        # Retrieve the reply information.
-        reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
-        reply_no = int(reply_no_str.strip().replace('#', ''))
-        dashed_line = '--------------------'
-        report_body += '\n#%d%s\n' % (reply_no, dashed_line) + __compose_content_report(reply) + '\n'
-    # Log to a file.
-    file_name = url.split('/')[-1] + '.pv'  # log_path/101020.pv
-    log(report_head + report_body, file_name)
+        # Compose the report.
+        thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
+        report_head = '<%s>\n' % thread_title
+        report_body = ''
+        # Now scan the replies.
+        for reply in replies:
+            try:
+                # Retrieve the reply information.
+                reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
+                reply_no = int(reply_no_str.strip().replace('#', ''))
+                dashed_line = '--------------------'
+                report_body += '\n#%d%s\n' % (reply_no, dashed_line) + __compose_content_report(reply) + '\n'
+            except Exception as reply_exception:
+                log_file_name = 'exception-reply.pv'
+                log('Error: Reply scanning failed on %s.' % thread_url, has_tst=True)
+                log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
+                    file_name=log_file_name)
+                log('\n\n[Reply source]\n' + reply.prettify(), file_name=log_file_name)
+        # Log to a file.
+        file_name = thread_url.split('/')[-1] + '.pv'  # log_path/101020.pv
+        log(report_head + report_body, file_name)
+    except Exception as thread_exception:
+        log_file_name = 'exception-closed-thread.pv'
+        log('Error: Thread scanning failed on %s.' % thread_url, has_tst=True)
+        log('Exception: %s\n[Traceback]\n%s' % (thread_exception, traceback.format_exc()), file_name=log_file_name)
+        log_page_source(file_name=file_name)
 
 
 def check_privilege(driver: webdriver.Chrome):
