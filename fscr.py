@@ -118,14 +118,21 @@ def scan_thread(thread_no: int, scan_count: int = 24, is_new_thread: bool = Fals
 
 
 def has_specs(reply) -> bool:
+    col_pt = 0
+    content_str = ''
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
-            if re.search("[6-9][0|5].{0,8}[a-kA-K]", content.text):
-                return True
-            elif re.search("1[4-7][0-9|noxNOX][^0-9]", content.text):
-                return True
-            elif re.search("[2-7][0-9|noxNOX][^0-9]", content.text):
-                return True
+            content_str += content.text + '\n'
+    if re.search("[6-9][0|5].{0,8}[a-kA-K]", content_str):
+        return True
+    if re.search("[^0-9~]1[4-7][0-9|noxNOX][^0-9]", content_str):
+        col_pt += 1
+    if re.search("[^0-9~][1-3][0-9|noxNOX][^0-9]", content_str):
+        col_pt += 1
+    if re.search("[^0-9~][4-6][1-9|noxNOX][^0-9]", content_str):
+        col_pt += 1
+    if col_pt >= 2:
+        return True
     else:
         return False
 
