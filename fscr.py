@@ -418,13 +418,17 @@ def loop_scanning():
             prev_prev_pause = prev_pause
             prev_pause = fluctuated_cycle_pause
 
+            is_hot = True if cycle_pause < Constants.HOT_THRESHOLD_SEC else False
+            if current_cycle_number >= sufficient_cycle_number and not is_hot:
+                break
+
             # Sleep to implement random behavior.
             time.sleep(fluctuated_cycle_pause)
 
             # Cycling
             current_cycle_number += 1
-            is_hot = True if cycle_pause < Constants.HOT_THRESHOLD_SEC else False
             last_cycled_time = datetime.now()
+
         # Sufficient cycles have been conducted and pause is large: Finish the session.
         session_elapsed_minutes = common.get_elapsed_sec(session_start_time) / 60
         log('\n%d cycles finished in %d minutes. Close the browser session.' %
