@@ -230,11 +230,11 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
     header = '\n' + double_line + '\n' + '<%s>\t#%d\t%s' % (thread_title, reply_no, user_id)
     if both_filled:
         header += '%s <- Name specified' % user_name_tag.text
-    report = header + '\n' + __compose_content_report(reply) + '\n(%s)\n' % thread_url + dashed_line
+    report = header + '\n' + __format_reply_content(reply) + '\n(%s)\n' % thread_url + dashed_line
     return report
 
 
-def __compose_content_report(reply):
+def __format_reply_content(reply):
     message = ""
     for content in reply.select_one('div.th-contents').contents:
         if isinstance(content, bs4.element.Tag):  # The content has a substructure.
@@ -300,12 +300,10 @@ def __scan_threads(soup) -> int:
                 log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
                 # Try full scanning and copy the page source.
                 count = 24
-                copy_replies(thread_url)
             else:
                 log('Error: Unexpected parameter for reply count(%s) for <%s>.\t(%s)\n(%s)' %
                     (row_count, thread_title, common.get_time_str(), thread_url))
                 count = 24
-                copy_replies(thread_url)
 
         # Check if the count has been increased.
         # If so, scan to check if there are links.
@@ -325,45 +323,6 @@ def __scan_threads(soup) -> int:
             sum_reply_count_to_scan += reply_count_to_scan
 
     return sum_reply_count_to_scan
-
-
-def copy_replies(thread_url: str):
-    try:
-        browser.get(thread_url)
-        is_loaded = wait_and_retry(browser_wait, 'thread-reply', presence_of_all=True)
-        if not is_loaded:
-            log('Error: Cannot scan the replies while trying to copy them. (%s)' % thread_url)
-            log_page_source(file_name='copy-replies-error.pv')
-        # Get the thread list and the scanning targets(the new replies)
-        replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-        replies = replies_soup.select('div.thread-reply')
-
-        # Compose the report.
-        thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
-        report_head = '<%s>\n' % thread_title
-        report_body = ''
-        # Now scan the replies.
-        for reply in replies:
-            try:
-                # Retrieve the reply information.
-                reply_no_str = reply.select_one('div.reply-info > span.reply-offset').next_element
-                reply_no = int(reply_no_str.strip().replace('#', ''))
-                dashed_line = '--------------------'
-                report_body += '\n#%d%s\n' % (reply_no, dashed_line) + __compose_content_report(reply) + '\n'
-            except Exception as reply_exception:
-                log_file_name = 'exception-reply.pv'
-                log('Error: Reply scanning failed on %s.' % thread_url, has_tst=True)
-                log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()),
-                    file_name=log_file_name)
-                log('\n\n[Reply source]\n' + reply.prettify(), file_name=log_file_name)
-        # Log to a file.
-        file_name = thread_url.split('/')[-1] + '.pv'  # log_path/101020.pv
-        log(report_head + report_body, file_name)
-    except Exception as thread_exception:
-        log_file_name = 'exception-closed-thread.pv'
-        log('Error: Thread scanning failed on %s.' % thread_url, has_tst=True)
-        log('Exception: %s\n[Traceback]\n%s' % (thread_exception, traceback.format_exc()), file_name=log_file_name)
-        log_page_source(file_name=file_name)
 
 
 def check_privilege(driver: webdriver.Chrome):
