@@ -162,12 +162,10 @@ def restore_img(int_index: str, reply_no: int, thread_no: int, file_name_format:
 def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                               prev_pause: float, prev_prev_pause: float) -> ():
     thread_url = common.get_thread_url(thread_no)  # The url of the thread quoting the source
-    try:
-        source_category, source_extension = retrieve_content_type(source_url)
-        if source_category == 'image':
-            return source_url, '%d-%03d.%s' % (thread_no, reply_no, source_extension)
-    except Exception as header_exception:
-        log('Error: The source has a wrong header.(%s)' % header_exception)
+    source_category, source_extension = retrieve_content_type(source_url)
+
+    if source_category == 'image':  # The source is an image, download it directly.
+        return source_url, '%d-%03d.%s' % (thread_no, reply_no, source_extension)
 
     domain = urlparse(source_url).netloc.replace('www', '')
 
@@ -309,7 +307,10 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
 
 
 def retrieve_content_type(target_url):
-    session = requests.Session()
-    headers = session.get(target_url).headers['Content-Type'].split('/')
-    session.close()
-    return headers
+    try:
+        session = requests.Session()
+        headers = session.get(target_url).headers['Content-Type'].split('/')
+        session.close()
+        return headers
+    except Exception as header_exception:
+        log('Error: The source has a wrong header.(%s)' % header_exception)

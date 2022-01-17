@@ -19,6 +19,7 @@ import downloader
 
 class Constants:
     HTML_TIMEOUT = 25
+    MAX_REPLIES_VISIBLE = 24
 
     # Credentials
     EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
@@ -78,7 +79,7 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
         log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
-def scan_thread(thread_no: int, scan_count: int = 24, is_new_thread: bool = False):
+def scan_thread(thread_no: int, scan_count: int = Constants.MAX_REPLIES_VISIBLE, is_new_thread: bool = False):
     # Open the page to scan
     thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
     browser.get(thread_url)
@@ -125,11 +126,12 @@ def has_specs(reply) -> bool:
             content_str += content.text + '\n'
     if re.search("[6-9][0|5].{0,8}[a-kA-K]", content_str):
         return True
-    if re.search("[^0-9~]1[4-7][0-9|noxNOX][^0-9]", content_str):
+    if re.search("[^0-9~]1[4-7][0-9noxNOX][^0-9]", content_str):
         col_pt += 1
-    if re.search("[^0-9~][1-3][0-9|noxNOX][^0-9]", content_str):
-        col_pt += 1
-    if re.search("[^0-9~][4-6][1-9|noxNOX][^0-9]", content_str):
+    if re.search("[^0-9~][1-3][0-9noxNOX][^0-9]", content_str):
+        if not re.search("[^0-9~][1][0-3][^0-9]", content_str):
+            col_pt += 1
+    if re.search("[^0-9~][4-6][0-9noxNOX][^0-9]", content_str):
         col_pt += 1
     if col_pt >= 2:
         return True
@@ -271,18 +273,8 @@ def __scan_threads(soup) -> int:
         thread_id = int(str(thread['href']).split('/')[-1])
         thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
 
-        # Filter threads.
-        # 1. Don't bother if the thread has been finished.
+        # Don't bother if the thread has been finished.
         if thread_id in finished_thread_ids:
-            continue  # Skip the thread.
-        # 2. Filter by titles.
-        thread_title = thread.select_one('span.title').string
-        has_pattern = False
-        for pattern in Constants.IGNORED_TITLE_PATTERNS:
-            if pattern in thread_title:
-                has_pattern = True
-                break
-        if has_pattern:
             continue  # Skip the thread.
 
         row_count = thread.select_one('span.count').string
@@ -299,29 +291,35 @@ def __scan_threads(soup) -> int:
                 thread_title = thread.select_one('span.title').string
                 log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
                 # Try full scanning and copy the page source.
-                count = 24
+                count = Constants.MAX_REPLIES_VISIBLE
             else:
                 log('Error: Unexpected parameter for reply count(%s) for <%s>.\t(%s)\n(%s)' %
                     (row_count, thread_title, common.get_time_str(), thread_url))
-                count = 24
+                count = Constants.MAX_REPLIES_VISIBLE
 
         # Check if the count has been increased.
         # If so, scan to check if there are links.
         reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
         if reply_count_to_scan > 0:
-            try:  # Finally, scan replies.
-                scan_thread(thread_id, reply_count_to_scan, is_new_thread)
-                if reply_count_to_scan >= 24:
-                    log('\nWarning: Many new replies on %s' % thread_url, has_tst=True)
-            except Exception as thread_exception:
-                log_file_name = 'exception-thread.pv'
-                exception_last_line = str(thread_exception).splitlines()[-1]
-                log('Error: Thread scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
-                log('Exception: %s\n[Traceback]\n%s' % (thread_exception, traceback.format_exc()),
-                    file_name=log_file_name)
-                log_page_source(file_name=log_file_name)
             sum_reply_count_to_scan += reply_count_to_scan
-
+            # Filter by titles.
+            thread_title = thread.select_one('span.title').string
+            for pattern in Constants.IGNORED_TITLE_PATTERNS:
+                if pattern in thread_title:
+                    log('\n<%s> ignored.(%s)' % (thread_title, thread_url), Constants.REPLY_LOG_FILE, True)
+                    break
+            else:  # No pattern matched. Scan replies of the thread.
+                try:
+                    scan_thread(thread_id, reply_count_to_scan, is_new_thread)
+                    if reply_count_to_scan >= Constants.MAX_REPLIES_VISIBLE:
+                        log('\nWarning: Many new replies on %s' % thread_url, has_tst=True)
+                except Exception as thread_exception:
+                    log_file_name = 'exception-thread.pv'
+                    exception_last_line = str(thread_exception).splitlines()[-1]
+                    log('Error: Thread scanning failed on %i(%s).' % (thread_id, exception_last_line), has_tst=True)
+                    log('Exception: %s\n[Traceback]\n%s' % (thread_exception, traceback.format_exc()),
+                        file_name=log_file_name)
+                    log_page_source(file_name=log_file_name)
     return sum_reply_count_to_scan
 
 
