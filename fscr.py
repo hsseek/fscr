@@ -20,6 +20,7 @@ import downloader
 class Constants:
     HTML_TIMEOUT = 25
     MAX_REPLIES_VISIBLE = 24
+    MAX_REPLIES_POSSIBLE = 300
 
     # Credentials
     EMAIL, PW = common.build_tuple('LOGIN_INFO.pv')
@@ -31,7 +32,7 @@ class Constants:
     # For the same or increasing number of new replies
     MIN_SCANNING_COUNT_PER_SESSION = 100
     MAX_SCANNING_COUNT_PER_SESSION = 420
-    PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER_THR, PAUSE_MULTIPLIER_SMALL, PAUSE_MULTIPLIER_LARGE\
+    PAUSE_IDLE, PAUSE_POWER, PAUSE_MULTIPLIER_THR, PAUSE_MULTIPLIER_SMALL, PAUSE_MULTIPLIER_LARGE \
         = common.build_float_tuple('PAUSE.pv')
     IGNORED_TITLE_PATTERNS = common.build_tuple('IGNORED_TITLE_PATTERNS.pv')
     IGNORED_REPLY_PATTERNS = common.build_tuple('IGNORED_REPLY_PATTERNS.pv')
@@ -49,8 +50,8 @@ def initiate_browser():
     return driver
 
 
-def log(message: str, file_name: str = common.Constants.LOG_FILE, has_tst: bool = False):
-    common.log(message, log_path=common.Constants.LOG_PATH + file_name, has_tst=has_tst)
+def log(message: str, file_name: str = common.Constants.LOG_FILE, has_tst: bool = False, has_print=True):
+    common.log(message, log_path=common.Constants.LOG_PATH + file_name, has_tst=has_tst, has_print=has_print)
 
 
 def wait_and_retry(wait: WebDriverWait, class_name: str, max_trial: int = 2, presence_of_all: bool = False):
@@ -79,7 +80,7 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
         log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
-def scan_thread(thread_no: int, scan_count: int = Constants.MAX_REPLIES_VISIBLE, is_new_thread: bool = False):
+def scan_thread(thread_no: int, last_reply_count: int):
     # Open the page to scan
     thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
     browser.get(thread_url)
@@ -92,28 +93,59 @@ def scan_thread(thread_no: int, scan_count: int = Constants.MAX_REPLIES_VISIBLE,
     elif browser.current_url != thread_url:
         browser.get(thread_url)
 
-    is_scan_head_only = True if scan_count == 1 and is_new_thread else False
-    if is_scan_head_only:  # Hardly called. A thread with head reply(#1) only detected.
+    # Now on the thread page.
+    reply_count_class_name = 'reply-count'
+    try:
+        wait_and_retry(browser_wait, reply_count_class_name)
+        count_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+        thread_title = count_soup.select_one('div.thread-info > h3.title').next_element
+        reply_count_tag = count_soup.select_one('span.%s' % reply_count_class_name).text
+        if reply_count_tag.isdigit():
+            current_reply_count = int(reply_count_tag)
+        else:
+            current_reply_count = 300
+            # An unexpected value for reply count. Log the status.
+            if '완결' in reply_count_tag:
+                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
+            elif '닫힘' in reply_count_tag:
+                log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
+            else:
+                log('Error: The reply count has an unexpected content(%s).\n(%s)' %
+                    (reply_count_tag, thread_url), has_tst=True)
+    except Exception as reply_count_exception:
+        current_reply_count = Constants.MAX_REPLIES_POSSIBLE
+        log_file_name = 'exception-reply-count.pv'
+        log('Error: Cannot retrieve reply count. (%s)' % thread_url)
+        log_page_source(file_name=log_file_name)
+        log('Exception: %s\n[Traceback]\n%s' % (reply_count_exception, traceback.format_exc()),
+            file_name=log_file_name)
+
+    # Calculate the number of replies to scan and update DB.
+    # Update before scanning to prevent looping. Once failed, don't retry.
+    count_to_scan = current_reply_count - last_reply_count
+    thread_db.update_thread(thread_no, current_reply_count)
+
+    if count_to_scan == 1 and last_reply_count == 0:  # Hardly called. A thread with the head reply(#1) only.
         is_loaded = wait_and_retry(browser_wait, 'th-contents')
         if not is_loaded:
             log('Error: Cannot scan the only reply. (%s)' % thread_url)
-            log_page_source(file_name='error-only-reply.pv')
+            log_page_source(file_name='exception-only-reply.pv')
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         scan_head(replies_soup, thread_no, thread_url)
     else:  # Need to scan replies as well.
         is_loaded = wait_and_retry(browser_wait, 'thread-reply')
         if not is_loaded:
             log('Error: Cannot scan replies after %.f". (%s)' % (prev_pause, thread_url))
-            log_page_source(file_name='error-replies.pv')
+            log_page_source(file_name='exception-replies.pv')
         # Get the thread list and the scanning targets(the new replies)
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
         replies = replies_soup.select('div.thread-reply')
 
-        if not replies or len(replies) < scan_count:  # The #1 needs scanning.
+        if not replies or len(replies) < count_to_scan:  # The #1 needs scanning.
             scan_head(replies_soup, thread_no, thread_url)
 
         # Now scan the new replies.
-        new_replies = replies[-scan_count:]
+        new_replies = replies[-count_to_scan:]
         for reply in new_replies:
             scan_content(replies_soup, reply, thread_no, thread_url)
 
@@ -131,7 +163,7 @@ def has_specs(reply) -> bool:
     if re.search("[^0-9~][1-3][0-9noxNOX][^0-9]", content_str):
         if not re.search("[^0-9~][1][0-3][^0-9]", content_str):
             col_pt += 1
-    if re.search("[^0-9~][4-6][0-9noxNOX][^0-9]", content_str):
+    if re.search("[^0-9~][4-6][1-9noxNOX][^0-9]", content_str):
         col_pt += 1
     if col_pt >= 2:
         return True
@@ -149,11 +181,11 @@ def scan_head(replies_soup, thread_no, thread_url):
     if spec_present:
         report += '\n(Specs present)'
     # Log every reply.
-    log(report, Constants.REPLY_LOG_FILE, True)
+    log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
     if links_in_head or spec_present:  # Link(s) present in the head
         # Log a meaningful reply.
-        log(report)
+        log(report, has_print=False)
         # Check if the reply contains ignored patterns.
         ignored_pattern = has_ignored_content(head)
         if ignored_pattern:
@@ -177,11 +209,11 @@ def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
         if spec_present:
             report += '\n(Specs present)'
         # Log every reply.
-        log(report, Constants.REPLY_LOG_FILE, True)
+        log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
         if links_in_reply or spec_present:
             # Log a meaningful reply.
-            log(report)
+            log(report, has_print=False)
 
             # Check if the reply contains ignored patterns.
             ignored_pattern = has_ignored_content(reply)
@@ -229,10 +261,10 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
         log('Error: Unknown user_id structure.(%s)' % thread_url)
         log('\n\n[Reply source]\n' + reply.prettify(),
             file_name='error-reply-user-id.pv')
-    header = '\n' + double_line + '\n' + '<%s>\t#%d\t%s' % (thread_title, reply_no, user_id)
+    header = '\n' + double_line + '\n' + '<%s>  #%d  %s  (%s)' % (thread_title, reply_no, user_id, thread_url)
     if both_filled:
         header += '%s <- Name specified' % user_name_tag.text
-    report = header + '\n' + __format_reply_content(reply) + '\n(%s)\n' % thread_url + dashed_line
+    report = header + '\n' + __format_reply_content(reply) + '\n' + dashed_line
     return report
 
 
@@ -273,46 +305,32 @@ def __scan_threads(soup) -> int:
         thread_id = int(str(thread['href']).split('/')[-1])
         thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
 
-        # Don't bother if the thread has been finished.
-        if thread_id in finished_thread_ids:
-            continue  # Skip the thread.
-
         row_count = thread.select_one('span.count').string
-        if str(row_count).isdigit():
-            count = int(row_count)  # Must be a natural number.
-        else:  # The count string is not digit. An irregular row.
-            thread_title = thread.select_one('span.title').string
-            # Add to finished list, as it does not need scanning further.
-            finished_thread_ids.append(thread_id)
-            if row_count == '완결':
-                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
-                count = int(300)
-            elif '닫힘' in row_count:
-                thread_title = thread.select_one('span.title').string
-                log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
-                # Try full scanning and copy the page source.
-                count = Constants.MAX_REPLIES_VISIBLE
-            else:
-                log('Error: Unexpected parameter for reply count(%s) for <%s>.\t(%s)\n(%s)' %
-                    (row_count, thread_title, common.get_time_str(), thread_url))
-                count = Constants.MAX_REPLIES_VISIBLE
+        # The count value is an estimate at this stage.
+        # Difference by 1~2 might occur due to the newly posted replies while scanning.
+        count = int(row_count) if str(row_count).isdigit() else Constants.MAX_REPLIES_POSSIBLE
 
         # Check if the count has been increased.
         # If so, scan to check if there are links.
-        reply_count_to_scan, is_new_thread = thread_db.get_reply_count_not_scanned(thread_id, count)
-        if reply_count_to_scan > 0:
-            sum_reply_count_to_scan += reply_count_to_scan
+        last_reply_count = thread_db.get_reply_count(thread_id)
+        new_count = count - last_reply_count
+        if new_count > 0:
+            # Accumulate the counts to estimate a proper pause at this stage.
+            sum_reply_count_to_scan += new_count
             # Filter by titles.
             thread_title = thread.select_one('span.title').string
             for pattern in Constants.IGNORED_TITLE_PATTERNS:
                 if pattern in thread_title:
                     log('\n<%s> ignored.(%s)' % (thread_title, thread_url), Constants.REPLY_LOG_FILE, True)
+                    # Update DB without actually scanning replies.
+                    # For the non-filtered threads, the reply count will be updated just before scanning.
+                    thread_db.update_thread(thread_id, count)
                     break
             else:  # No pattern matched. Scan replies of the thread.
                 try:
-                    scan_thread(thread_id, reply_count_to_scan, is_new_thread)
-                    if reply_count_to_scan >= Constants.MAX_REPLIES_VISIBLE:
+                    if new_count >= Constants.MAX_REPLIES_VISIBLE:
                         log('\nWarning: Many new replies on %s' % thread_url, has_tst=True)
+                    scan_thread(thread_id, last_reply_count)
                 except Exception as thread_exception:
                     log_file_name = 'exception-thread.pv'
                     exception_last_line = str(thread_exception).splitlines()[-1]
@@ -337,7 +355,7 @@ def check_privilege(driver: webdriver.Chrome):
             driver.find_element(By.XPATH, '//*[@id="app"]/div/form/input[1]').send_keys(Constants.EMAIL)
             driver.find_element(By.XPATH, '//*[@id="app"]/div/form/input[2]').send_keys(Constants.PW)
             driver.find_element(By.XPATH, '//*[@id="app"]/div/form/input[3]').click()
-            WebDriverWait(driver, timeout).\
+            WebDriverWait(driver, timeout). \
                 until(expected_conditions.presence_of_element_located((By.CLASS_NAME, logged_in_class_name)))
             log('Login successful.\t', has_tst=True)
             return True
@@ -367,7 +385,7 @@ def load_thread_list():
         log('Page source\n\n' + browser.page_source, file_name='thread-list-err.pv')
         # Cool down and loop again.
         time.sleep(fluctuate(12))
-        return 
+        return
     threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
 
     # Scan thread list and accumulate the number of new replies.
@@ -376,8 +394,8 @@ def load_thread_list():
 
 
 def impose_pause(new_reply_count: int, elapsed_sec: float):
-    recurrence_pause = prev_pause * Constants.PAUSE_MULTIPLIER_SMALL\
-        if new_reply_count > Constants.PAUSE_MULTIPLIER_THR\
+    recurrence_pause = prev_pause * Constants.PAUSE_MULTIPLIER_SMALL \
+        if new_reply_count > Constants.PAUSE_MULTIPLIER_THR \
         else prev_pause * Constants.PAUSE_MULTIPLIER_LARGE
     pause = min(recurrence_pause, get_absolute_pause(new_reply_count))
     fluctuated_pause = fluctuate(pause)
@@ -460,7 +478,6 @@ if __name__ == "__main__":
 
         # Connect to the database
         thread_db = sqlite.ThreadDatabase()
-        finished_thread_ids = thread_db.fetch_finished()
         log('SQL connection opened.', has_tst=True)
 
         # Initiate the browser
@@ -485,5 +502,5 @@ if __name__ == "__main__":
             log('SQL connection closed.', has_tst=True)
 
         session_pause = Constants.HOT_THRESHOLD_SEC * random.uniform(0.46, 1.2)
-        log('Pause for %.1f min.\t(%s)\n' % (session_pause/60, common.get_time_str()))
+        log('Pause for %.1f min.\t(%s)\n' % (session_pause / 60, common.get_time_str()))
         time.sleep(session_pause)

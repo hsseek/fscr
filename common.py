@@ -52,7 +52,7 @@ def check_dir_exists(dir_path: str):
         return True  # Already exists.
 
 
-def log(message: str, log_path: str, has_tst: bool = False):
+def log(message: str, log_path: str, has_tst: bool = False, has_print: bool = True):
     dir_path = split_on_last_pattern(log_path, '/')[0]
     check_dir_exists(dir_path)
 
@@ -60,7 +60,8 @@ def log(message: str, log_path: str, has_tst: bool = False):
         if has_tst:
             message += '\t(%s)' % get_time_str()
         f_append.write(message + '\n')
-    print(message)
+    if has_print:
+        print(message)
 
 
 def trim_logs(log_path: str):
