@@ -65,7 +65,7 @@ def log(message: str, log_path: str, has_tst: bool = False, has_print: bool = Tr
 
 
 def trim_logs(log_path: str):
-    lines_threshold = 120000
+    lines_threshold = 524288
     old_lines = 30000
 
     if not os.path.isfile(log_path):

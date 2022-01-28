@@ -108,7 +108,7 @@ def scan_thread(thread_no: int, last_reply_count: int):
             if '완결' in reply_count_tag:
                 log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
             elif '닫힘' in reply_count_tag:
-                log('\n<%s> closed.(%s)' % (thread_title, thread_url), has_tst=True)
+                log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url), has_tst=True)
             else:
                 log('Error: The reply count has an unexpected content(%s).\n(%s)' %
                     (reply_count_tag, thread_url), has_tst=True)
@@ -156,14 +156,15 @@ def has_specs(reply) -> bool:
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
             content_str += content.text + '\n'
-    if re.search("[6-9][0|5].{0,8}[a-kA-K]", content_str):
+    if re.search("(^|[^0-9])[6-9][0|5].{0,8}[a-kA-K]", content_str):
         return True
-    if re.search("[^0-9~]1[4-7][0-9noxNOX][^0-9]", content_str):
+    if re.search("[1-9][0-9].{0,4}[a-kA-K]([^a-zA-Z].*|$)", content_str):
+        return True
+    if re.search("(^|[^0-9])1[4-7][0-9noxNOX]([^0-9시분초개대번~]|$)", content_str):
         col_pt += 1
-    if re.search("[^0-9~][1-3][0-9noxNOX][^0-9]", content_str):
-        if not re.search("[^0-9~][1][0-3][^0-9]", content_str):
-            col_pt += 1
-    if re.search("[^0-9~][4-6][1-9noxNOX][^0-9]", content_str):
+    if re.search("(^|[^0-9])[1-3][0-9noxNOX]([^0-9시분초개대번~]|$)", content_str):
+        col_pt += 1
+    if re.search("(^|[^0-9])[4-6][0-9noxNOX]([^0-9시분초개대번~]|$)", content_str):
         col_pt += 1
     if col_pt >= 2:
         return True
@@ -281,7 +282,7 @@ def __format_reply_content(reply):
             else:
                 message += 'Error: Unknown tag.\n%s\n' % content
         else:  # A simple text element
-            message += str(content).strip() + " "
+            message += str(content).strip()
     return message
 
 
@@ -329,7 +330,7 @@ def __scan_threads(soup) -> int:
             else:  # No pattern matched. Scan replies of the thread.
                 try:
                     if new_count >= Constants.MAX_REPLIES_VISIBLE:
-                        log('\nWarning: Many new replies on %s' % thread_url, has_tst=True)
+                        log('\nMany new replies on %s' % thread_url, has_tst=True)
                     scan_thread(thread_id, last_reply_count)
                 except Exception as thread_exception:
                     log_file_name = 'exception-thread.pv'

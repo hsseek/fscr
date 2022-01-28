@@ -168,6 +168,8 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         return source_url, '%d-%03d.%s' % (thread_no, reply_no, source_extension)
 
     domain = urlparse(source_url).netloc.replace('www', '')
+    if source_url.strip().strip('/').endswith(domain):  # The domain itself: nothing to download.
+        return
 
     if domain == 'imgdb.in':
         source = requests.get(source_url).text
@@ -246,6 +248,11 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                     log('[ V ] <- %.f" \t<- %.f"\t: %s #%d  \t->  \t%s'
                         % (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
                         file_name=Constants.DL_LOG_FILE)
+            else:
+                log('Download button located, but failed to download.')
+                log('[ - ] <- %.f" \t<- %.f"\t: %s #%d  \t-!->\t%s' %
+                    (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
+                    file_name=Constants.DL_LOG_FILE, has_tst=True)
         except selenium.common.exceptions.NoSuchElementException:
             err_soup = BeautifulSoup(tmp_browser.page_source, common.Constants.HTML_PARSER)
             if err_soup.select_one('div#expired > p.notice'):
