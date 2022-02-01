@@ -80,7 +80,7 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
         log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
-def scan_thread(thread_no: int, last_reply_count: int):
+def scan_thread(thread_no: int, last_reply_count: int, head_only: bool):
     # Open the page to scan
     thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
     browser.get(thread_url)
@@ -93,59 +93,57 @@ def scan_thread(thread_no: int, last_reply_count: int):
     elif browser.current_url != thread_url:
         browser.get(thread_url)
 
-    # Now on the thread page.
-    reply_count_class_name = 'reply-count'
-    try:
-        wait_and_retry(browser_wait, reply_count_class_name)
-        count_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-        thread_title = count_soup.select_one('div.thread-info > h3.title').next_element
-        reply_count_tag = count_soup.select_one('span.%s' % reply_count_class_name).text
-        if reply_count_tag.isdigit():
-            current_reply_count = int(reply_count_tag)
-        else:
-            current_reply_count = 300
-            # An unexpected value for reply count. Log the status.
-            if '완결' in reply_count_tag:
-                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
-            elif '닫힘' in reply_count_tag:
-                log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url), has_tst=True)
-            else:
-                log('Error: The reply count has an unexpected content(%s).\n(%s)' %
-                    (reply_count_tag, thread_url), has_tst=True)
-    except Exception as reply_count_exception:
-        current_reply_count = Constants.MAX_REPLIES_POSSIBLE
-        log_file_name = 'exception-reply-count.pv'
-        log('Error: Cannot retrieve reply count. (%s)' % thread_url)
-        log_page_source(file_name=log_file_name)
-        log('Exception: %s\n[Traceback]\n%s' % (reply_count_exception, traceback.format_exc()),
-            file_name=log_file_name)
-
-    # Calculate the number of replies to scan and update DB.
-    # Update before scanning to prevent looping. Once failed, don't retry.
-    count_to_scan = current_reply_count - last_reply_count
-    thread_db.update_thread(thread_no, current_reply_count)
-
-    if count_to_scan == 1 and last_reply_count == 0:  # Hardly called. A thread with the head reply(#1) only.
+    if head_only:  # Hardly called. A thread with the head reply(#1) only.
+        # Do not wait for 'thread-reply' which doesn't exist yet.
         is_loaded = wait_and_retry(browser_wait, 'th-contents')
         if not is_loaded:
             log('Error: Cannot scan the only reply. (%s)' % thread_url)
             log_page_source(file_name='exception-only-reply.pv')
-        replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-        scan_head(replies_soup, thread_no, thread_url)
-    else:  # Need to scan replies as well.
+        head_reply_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+        thread_db.update_thread(thread_no, 1)
+        scan_head(head_reply_soup, thread_no, thread_url)
+    else:
         is_loaded = wait_and_retry(browser_wait, 'thread-reply')
         if not is_loaded:
             log('Error: Cannot scan replies after %.f". (%s)' % (prev_pause, thread_url))
             log_page_source(file_name='exception-replies.pv')
         # Get the thread list and the scanning targets(the new replies)
         replies_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
+        reply_count_class_name = 'reply-count'
+        reply_count_str = replies_soup.select_one('span.%s' % reply_count_class_name).text
+        if reply_count_str.isdigit():
+            asserted_reply_count = int(reply_count_str)
+        else:
+            # An unexpected value for reply count. Prevent further scanning.
+            asserted_reply_count = Constants.MAX_REPLIES_POSSIBLE
+            thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
+            if '완결' in reply_count_str:
+                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
+            elif '닫힘' in reply_count_str:
+                log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url), has_tst=True)
+            else:
+                log('Error: The reply count has an unexpected content(%s).\n(%s)' %
+                    (reply_count_str, thread_url), has_tst=True)
+        try:
+            last_reply_no = replies_soup.select('span.reply-offset')[-1].text.strip().strip('#')
+            current_reply_count = int(last_reply_no)
+        except Exception as last_reply_no_exception:
+            log('Error: The last reply number cannot be retrieved(%s).' % last_reply_no_exception)
+            log_page_source(file_name='exception-last-reply-no.pv')
+            current_reply_count = asserted_reply_count
+        if asserted_reply_count != Constants.MAX_REPLIES_POSSIBLE and current_reply_count != asserted_reply_count:
+            log('\nWarning: The last reply no(%d) != The reply count on the head(%d).(%s)' %
+                (current_reply_count, asserted_reply_count, thread_url), has_tst=True)
+
+        current_count_to_scan = current_reply_count - last_reply_count
+        thread_db.update_thread(thread_no, current_reply_count)
         replies = replies_soup.select('div.thread-reply')
 
-        if not replies or len(replies) < count_to_scan:  # The #1 needs scanning.
+        if not replies or len(replies) < current_count_to_scan:  # The #1 needs scanning.
             scan_head(replies_soup, thread_no, thread_url)
 
         # Now scan the new replies.
-        new_replies = replies[-count_to_scan:]
+        new_replies = replies[-current_count_to_scan:]
         for reply in new_replies:
             scan_content(replies_soup, reply, thread_no, thread_url)
 
@@ -299,39 +297,48 @@ def get_absolute_pause(new_reply_count: int):
 
 # Get how many replies have been uploaded since the last check.
 # If new replies exist, scan the thread.
-def __scan_threads(soup) -> int:
+def scan_threads(soup) -> int:
     global thread_db
     sum_reply_count_to_scan = 0
     for thread in soup.select('a.thread-list-item'):
         thread_id = int(str(thread['href']).split('/')[-1])
         thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
+        thread_title = thread.select_one('span.title').string
+        reply_count = None
 
-        row_count = thread.select_one('span.count').string
+        reply_count_str = thread.select_one('span.count').string
         # The count value is an estimate at this stage.
         # Difference by 1~2 might occur due to the newly posted replies while scanning.
-        count = int(row_count) if str(row_count).isdigit() else Constants.MAX_REPLIES_POSSIBLE
+        if reply_count_str.isdigit():
+            reply_count = int(reply_count_str)
+        elif '닫힘' in reply_count_str:
+            consecutive_digits = re.search("[1-9][0-9].{0,2}", reply_count_str)
+            if consecutive_digits:
+                reply_count = consecutive_digits
+        # No clues of reply count.
+        if reply_count is None:
+            reply_count = Constants.MAX_REPLIES_POSSIBLE
 
         # Check if the count has been increased.
         # If so, scan to check if there are links.
         last_reply_count = thread_db.get_reply_count(thread_id)
-        new_count = count - last_reply_count
+        new_count = reply_count - last_reply_count
         if new_count > 0:
             # Accumulate the counts to estimate a proper pause at this stage.
             sum_reply_count_to_scan += new_count
             # Filter by titles.
-            thread_title = thread.select_one('span.title').string
             for pattern in Constants.IGNORED_TITLE_PATTERNS:
                 if pattern in thread_title:
                     log('\n<%s> ignored.(%s)' % (thread_title, thread_url), Constants.REPLY_LOG_FILE, True)
                     # Update DB without actually scanning replies.
                     # For the non-filtered threads, the reply count will be updated just before scanning.
-                    thread_db.update_thread(thread_id, count)
+                    thread_db.update_thread(thread_id, reply_count)
                     break
             else:  # No pattern matched. Scan replies of the thread.
                 try:
                     if new_count >= Constants.MAX_REPLIES_VISIBLE:
-                        log('\nMany new replies on %s' % thread_url, has_tst=True)
-                    scan_thread(thread_id, last_reply_count)
+                        log('\n%d new replies on %s' % (new_count, thread_url), has_tst=True)
+                    scan_thread(thread_id, last_reply_count, reply_count == 1)
                 except Exception as thread_exception:
                     log_file_name = 'exception-thread.pv'
                     exception_last_line = str(thread_exception).splitlines()[-1]
@@ -390,7 +397,7 @@ def load_thread_list():
     threads_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
 
     # Scan thread list and accumulate the number of new replies.
-    new_reply_count += __scan_threads(threads_soup)
+    new_reply_count += scan_threads(threads_soup)
     return new_reply_count
 
 

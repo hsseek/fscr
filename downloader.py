@@ -309,6 +309,8 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         print('%s quoted at #%d.' % (source_url, reply_no))
     elif domain == 'image.kilho.net':
         print("'image.kilho.net' quoted at #%d." % reply_no)
+    elif domain == 'imgdb.kilho.net':
+        print("'imgdb.kilho.net' quoted at #%d." % reply_no)
     else:
         log('Warning: Unknown source at #%d.(%s)' % (reply_no, source_url))
 
