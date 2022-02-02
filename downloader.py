@@ -152,10 +152,10 @@ def download(source_url: str, thread_no: int, reply_no: int, prev_pause: float, 
 
 def restore_img(int_index: str, reply_no: int, thread_no: int, file_name_format: str) -> str:
     for file_name in os.listdir(Constants.DL_BACKUP_PATH):
-        if file_name.startswith(int_index):
+        if file_name.startswith(int_index + '-'):
             extension = file_name.split('.')[-1]
             formatted_file_name = file_name_format % (int_index, reply_no, thread_no, extension)
-            copyfile(Constants.DL_BACKUP_PATH + file_name, Constants.DL_DESTINATION_PATH + formatted_file_name)
+            os.rename(Constants.DL_BACKUP_PATH + file_name, Constants.DL_DESTINATION_PATH + formatted_file_name)
             return formatted_file_name
 
 
@@ -194,12 +194,21 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
-            target_url = target_tag['href']  # url of the file to download
-            imgdb_link_category, imgdb_link_extension = retrieve_content_type(target_url)
-            if imgdb_link_category != 'image':
-                log('Error: %s is not an image.' % source_url, has_tst=True)
-            formatted_file_name = file_name_format % (int_index, reply_no, thread_no, imgdb_link_extension)
-            return target_url, formatted_file_name
+            # Search from the backup folder to spare downloading.
+            restored_file_name = restore_img(int_index, reply_no, thread_no, file_name_format)
+            if restored_file_name:
+                log("%s" % (Constants.DUMP_PATH + restored_file_name), has_tst=True)
+                log('[ V ] <- %.f" \t<- %.f"\t: %s #%d  \t->  \t%s'
+                    % (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
+                    file_name=Constants.DL_LOG_FILE)
+            else:  # Not available from the backup, download the file.
+                target_url = target_tag['href']  # url of the file to download
+                imgdb_link_category, imgdb_link_extension = retrieve_content_type(target_url)
+                if imgdb_link_category != 'image':
+                    log('Error: %s is not an image.' % source_url, has_tst=True)
+                formatted_file_name = file_name_format % (int_index, reply_no, thread_no, imgdb_link_extension)
+
+                return target_url, formatted_file_name
 
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
         if (domain + '/success' in source_url) or (domain + '/delete' in source_url):
@@ -306,7 +315,6 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
 
         try:
             tmp_browser.get(source_url)
-
             wait = WebDriverWait(tmp_browser, timeout)
             wait.until(expected_conditions.presence_of_element_located((By.ID, download_btn_id)))
 
