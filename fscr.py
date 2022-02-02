@@ -154,17 +154,29 @@ def has_specs(reply) -> bool:
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
             content_str += content.text + '\n'
-    if re.search("(^|[^0-9])[6-9][0|5].{0,8}[a-kA-K]", content_str):
+    if re.search("(^|[^0-9])[6-9][0|5].{0,8}[a-k]", content_str, re.IGNORECASE):
         return True
-    if re.search("[1-9][0-9].{0,4}[a-kA-K]([^a-zA-Z].*|$)", content_str):
-        return True
-    if re.search("(^|[^0-9])1[4-7][0-9noxNOX]([^0-9시분초개대번~]|$)", content_str):
+    if re.search("[1-9][0-9].{0,4}[a-k]", content_str, re.IGNORECASE):
+        if not re.search("[a-k][a-z]", content_str, re.IGNORECASE):
+            return True
+    if re.search("(^|[^0-9])1[4-7][0-9nox]([^0-9시분초개대번~]|$)", content_str, re.IGNORECASE):
         col_pt += 1
-    if re.search("(^|[^0-9])[1-3][0-9noxNOX]([^0-9시분초개대번~]|$)", content_str):
+    if re.search("(^|[^0-9])[1-3][0-9nox]([^0-9시분초개대번~]|$)", content_str, re.IGNORECASE):
         col_pt += 1
-    if re.search("(^|[^0-9])[4-6][0-9noxNOX]([^0-9시분초개대번~]|$)", content_str):
+    if re.search("(^|[^0-9])[4-6][0-9nox]([^0-9시분초개대번~]|$)", content_str, re.IGNORECASE):
         col_pt += 1
     if col_pt >= 2:
+        return True
+    else:
+        return False
+
+
+def has_contacts(reply) -> bool:
+    content_str = ''
+    for content in reply.select_one('div.th-contents'):
+        if not isinstance(content, bs4.element.Tag):  # Plain text
+            content_str += content.text + '\n'
+    if re.search("[a-z][0-9a-z]{3,}", content_str, re.IGNORECASE):
         return True
     else:
         return False
@@ -175,10 +187,13 @@ def scan_head(replies_soup, thread_no, thread_url):
     head = replies_soup.select_one('div.thread-first-reply')
     links_in_head = head.select('a.link')
     spec_present = has_specs(head)
+    contact_present = has_contacts(head)
 
     report = compose_reply_report(replies_soup, thread_url, head, 1)
     if spec_present:
         report += '\n(Specs present)'
+    if contact_present:
+        report += '\n(Contact present)'
     # Log every reply.
     log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
@@ -200,6 +215,7 @@ def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
         global prev_pause, prev_prev_pause
         links_in_reply = reply.select('div.th-contents > a.link')
         spec_present = has_specs(reply)
+        contact_present = has_contacts(reply)
 
         # Retrieve the reply information.
         reply_no_str = reply.select_one('div.reply-info > span.reply-offset').text
@@ -207,6 +223,8 @@ def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
         report = compose_reply_report(replies_soup, thread_url, reply, reply_no)
         if spec_present:
             report += '\n(Specs present)'
+        if contact_present:
+            report += '\n(Contact present)'
         # Log every reply.
         log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 

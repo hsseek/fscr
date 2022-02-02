@@ -170,7 +170,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
     domain = urlparse(source_url).netloc.replace('www', '')
     if source_url.strip().strip('/').endswith(domain):  # The domain itself: nothing to download.
         return
-
+    domain = domain + ''
     if domain == 'imgdb.in':
         source = requests.get(source_url).text
         soup = BeautifulSoup(source, common.Constants.HTML_PARSER)
@@ -241,7 +241,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             is_dl_successful = wait_finish_downloading(Constants.DL_TMP_PATH, 280)
             if is_dl_successful:
                 for file_name in os.listdir(Constants.DL_TMP_PATH):
-                    formatted_file_name = '%s-%s-%03d-%s' %\
+                    formatted_file_name = '%s-%s-%03d-%s' % \
                                           (domain.strip('.com'), thread_no, reply_no, __format_file_name(file_name))
                     os.rename(Constants.DL_TMP_PATH + file_name, Constants.DL_DESTINATION_PATH + formatted_file_name)
                     log("%s" % (Constants.DUMP_PATH + formatted_file_name), has_tst=True)
@@ -302,15 +302,15 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             return target_url, local_name
 
     elif domain == 'tmpfiles.org':
-        log('Warning: Unusual upload at #%d: tmpfiles.org.' % reply_no)
+        log('Unusual upload at #%d: tmpfiles.org.' % reply_no)
     elif domain == 'sendvid.com':
-        log('Warning: Unusual upload at #%d: sendvid.org.' % reply_no)
+        log('Unusual upload at #%d: sendvid.org.' % reply_no)
+    elif domain == 'open.kakao.com':
+        log('(Contact present)')
     elif domain == 'freethread.net':
         print('%s quoted at #%d.' % (source_url, reply_no))
     elif domain == 'image.kilho.net':
         print("'image.kilho.net' quoted at #%d." % reply_no)
-    elif domain == 'imgdb.kilho.net':
-        print("'imgdb.kilho.net' quoted at #%d." % reply_no)
     else:
         log('Warning: Unknown source at #%d.(%s)' % (reply_no, source_url))
 
