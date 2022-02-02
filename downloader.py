@@ -190,21 +190,19 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                 if restored_file_name:
                     log("(Restored) %s" % (Constants.DUMP_PATH + restored_file_name), has_tst=True)
                 else:
-                    log('Sorry, cannot download %s quoted at #%d.' % (int_index, reply_no), has_tst=True)
+                    log('Sorry, cannot download %s.' % int_index, has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), file_name=str(thread_no))
         else:  # <link> tag present
             target_url = target_tag['href']  # url of the file to download
             imgdb_link_category, imgdb_link_extension = retrieve_content_type(target_url)
             if imgdb_link_category != 'image':
-                log('Error: %s is not an image(quoted at #%d).' % (source_url, reply_no), has_tst=True)
-            local_name = file_name_format % (int_index, reply_no, thread_no, imgdb_link_extension)
-            return target_url, local_name
+                log('Error: %s is not an image.' % source_url, has_tst=True)
+            formatted_file_name = file_name_format % (int_index, reply_no, thread_no, imgdb_link_extension)
+            return target_url, formatted_file_name
 
     elif domain == 'tmpstorage.com':  # Returns None: download directly from the chrome driver.
-        if source_url.strip('/').endswith(domain):
-            return  # Referring the website itself, instead of a downloadable source.
-        elif (domain + '/success' in source_url) or (domain + '/delete' in source_url):
+        if (domain + '/success' in source_url) or (domain + '/delete' in source_url):
             return  # Not a downloadable link.
 
         download_btn_xpath = '/html/body/div[2]/div/p/a'
@@ -290,7 +288,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
             if soup.select_one('div.page-not-found'):
-                log('Error: Cannot download imgbb link quoted at #%d.' % reply_no, has_tst=True)
+                log('Error: Cannot download imgbb link.', has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
         else:  # The image link tag present
@@ -298,19 +296,77 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
             target_url = target_tag['src']
             file_name = common.split_on_last_pattern(target_url, '/')[-1]
 
-            local_name = '%s-%s-%02d-%s' % ('ibb', thread_no, reply_no, __format_file_name(file_name))
-            return target_url, local_name
+            formatted_file_name = '%s-%s-%02d-%s' % ('ibb', thread_no, reply_no, __format_file_name(file_name))
+            return target_url, formatted_file_name
+
+    elif domain == 'postimg.cc':
+        download_btn_id = 'download'
+        tmp_browser = initiate_browser()
+        timeout = 10
+
+        try:
+            tmp_browser.get(source_url)
+
+            wait = WebDriverWait(tmp_browser, timeout)
+            wait.until(expected_conditions.presence_of_element_located((By.ID, download_btn_id)))
+
+            common.check_dir_exists(Constants.DL_TMP_PATH)
+            tmp_browser.find_element(By.ID, download_btn_id).click()
+            is_dl_successful = wait_finish_downloading(Constants.DL_TMP_PATH, 280)
+            if is_dl_successful:
+                for file_name in os.listdir(Constants.DL_TMP_PATH):
+                    formatted_file_name = '%s-%s-%03d-%s' % \
+                                          ('postimg', thread_no, reply_no, __format_file_name(file_name))
+                    os.rename(Constants.DL_TMP_PATH + file_name, Constants.DL_DESTINATION_PATH + formatted_file_name)
+                    log("%s" % (Constants.DUMP_PATH + formatted_file_name), has_tst=True)
+                    log('[ V ] <- %.f" \t<- %.f"\t: %s #%d  \t->  \t%s'
+                        % (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
+                        file_name=Constants.DL_LOG_FILE)
+        except selenium.common.exceptions.TimeoutException:
+            # Try downloading posted image instead of the original image.
+            source = requests.get(source_url).text
+            soup = BeautifulSoup(source, common.Constants.HTML_PARSER)
+            target_tag = soup.select_one('img#main-image')
+            if target_tag:
+                target_url = target_tag['src']
+                file_name = common.split_on_last_pattern(target_url, '/')[-1]
+                formatted_file_name = '%s-%s-%03d-%s' % \
+                                      ('postimg', thread_no, reply_no, __format_file_name(file_name))
+                return target_url, formatted_file_name
+            else:  # An empty tag, returning None.
+                log('Error: Cannot download postimg link.' % reply_no, has_tst=True)
+                log('[ - ] <- %.f" \t<- %.f"\t: %s #%d  \t-!->\t%s' %
+                    (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
+                    file_name=Constants.DL_LOG_FILE, has_tst=True)
+        except FileNotFoundError as file_exception:
+            log('Error: The local file not found.\n%s' % file_exception)
+        except Exception as postimg_exception:
+            file_name = 'exception-postimg.pv'
+            log('Error: Cannot retrieve postimg source(%s).' % postimg_exception, has_tst=True)
+            log('Exception: %s\n\n[Traceback]\n%s' %
+                (postimg_exception, traceback.format_exc()), file_name)
+            err_soup = BeautifulSoup(tmp_browser.page_source, common.Constants.HTML_PARSER)
+            log('\n\n[Page source]\n' + err_soup.prettify(), file_name)
+        finally:
+            tmp_browser.quit()
+            common.check_dir_exists(Constants.DL_TMP_PATH)
+            for file_name in os.listdir(Constants.DL_TMP_PATH):  # Clear the tmp directory.
+                os.rename(Constants.DL_TMP_PATH + file_name, Constants.DL_DESTINATION_PATH + file_name)
+                log("%s" % (Constants.DUMP_PATH + file_name), has_tst=True)
+                log('[ / ] <- %.f" \t<- %.f"\t: %s #%d  \t->  \t%s' %
+                    (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
+                    file_name=Constants.DL_LOG_FILE)
 
     elif domain == 'tmpfiles.org':
-        log('Unusual upload at #%d: tmpfiles.org.' % reply_no)
+        log('Unusual upload: tmpfiles.org.')
     elif domain == 'sendvid.com':
-        log('Unusual upload at #%d: sendvid.org.' % reply_no)
+        log('Unusual upload: sendvid.org.')
     elif domain == 'open.kakao.com':
         log('(Contact present)')
     elif domain == 'freethread.net':
-        print('%s quoted at #%d.' % (source_url, reply_no))
+        print('%s quoted.' % source_url)
     elif domain == 'image.kilho.net':
-        print("'image.kilho.net' quoted at #%d." % reply_no)
+        print("'image.kilho.net' quoted.")
     else:
         log('Warning: Unknown source at #%d.(%s)' % (reply_no, source_url))
 
