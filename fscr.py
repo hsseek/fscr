@@ -80,9 +80,9 @@ def log_page_source(msg: str = None, file_name: str = common.Constants.LOG_FILE)
         log('Error: cannot print page source.(%s)' % page_source_exception)
 
 
-def scan_thread(thread_no: int, last_reply_count: int, head_only: bool):
+def scan_thread(thread_id: int, last_reply_count: int, head_only: bool, is_reply_count_readable: bool):
     # Open the page to scan
-    thread_url = common.get_thread_url(thread_no)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
+    thread_url = common.get_thread_url(thread_id)  # Edit here to debug individual threads. e.g. 'file:///*/main.html'
     browser.get(thread_url)
 
     is_privileged = check_privilege(browser)
@@ -100,8 +100,12 @@ def scan_thread(thread_no: int, last_reply_count: int, head_only: bool):
             log('Error: Cannot scan the only reply. (%s)' % thread_url)
             log_page_source(file_name='exception-only-reply.pv')
         head_reply_soup = BeautifulSoup(browser.page_source, common.Constants.HTML_PARSER)
-        thread_db.update_thread(thread_no, 1)
-        scan_head(head_reply_soup, thread_no, thread_url)
+        if is_reply_count_readable:
+            thread_db.update_thread(thread_id, 1)
+        else:
+            # Prevent further scanning.
+            thread_db.update_thread(thread_id, Constants.MAX_REPLIES_POSSIBLE)
+        scan_head(head_reply_soup, thread_id, thread_url)
     else:
         is_loaded = wait_and_retry(browser_wait, 'thread-reply')
         if not is_loaded:
@@ -116,11 +120,8 @@ def scan_thread(thread_no: int, last_reply_count: int, head_only: bool):
         else:
             # An unexpected value for reply count. Prevent further scanning.
             asserted_reply_count = Constants.MAX_REPLIES_POSSIBLE
-            thread_title = replies_soup.select_one('div.thread-info > h3.title').next_element
             if '완결' in reply_count_str:
-                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url))
-            elif '닫힘' in reply_count_str:
-                log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url), has_tst=True)
+                pass  # Which is expected.
             else:
                 log('Error: The reply count has an unexpected content(%s).\n(%s)' %
                     (reply_count_str, thread_url), has_tst=True)
@@ -136,16 +137,20 @@ def scan_thread(thread_no: int, last_reply_count: int, head_only: bool):
                 (current_reply_count, asserted_reply_count, thread_url), has_tst=True)
 
         current_count_to_scan = current_reply_count - last_reply_count
-        thread_db.update_thread(thread_no, current_reply_count)
+        if is_reply_count_readable:
+            thread_db.update_thread(thread_id, current_reply_count)
+        else:
+            # Prevent further scanning.
+            thread_db.update_thread(thread_id, Constants.MAX_REPLIES_POSSIBLE)
         replies = replies_soup.select('div.thread-reply')
 
         if not replies or len(replies) < current_count_to_scan:  # The #1 needs scanning.
-            scan_head(replies_soup, thread_no, thread_url)
+            scan_head(replies_soup, thread_id, thread_url)
 
         # Now scan the new replies.
         new_replies = replies[-current_count_to_scan:]
         for reply in new_replies:
-            scan_content(replies_soup, reply, thread_no, thread_url)
+            scan_content(replies_soup, reply, thread_id, thread_url)
 
 
 def has_specs(reply) -> bool:
@@ -176,13 +181,13 @@ def has_contacts(reply) -> bool:
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
             content_str += content.text + '\n'
-    if re.search("[a-z][0-9a-z]{3,}", content_str, re.IGNORECASE):
+    if re.search("[a-z][0-9a-z]{4,}", content_str, re.IGNORECASE):
         return True
     else:
         return False
 
 
-def scan_head(replies_soup, thread_no, thread_url):
+def scan_head(replies_soup, thread_id, thread_url):
     global prev_pause, prev_prev_pause
     head = replies_soup.select_one('div.thread-first-reply')
     links_in_head = head.select('a.link')
@@ -197,7 +202,7 @@ def scan_head(replies_soup, thread_no, thread_url):
     # Log every reply.
     log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
-    if links_in_head or spec_present:  # Link(s) present in the head
+    if links_in_head or spec_present or contact_present:  # Link(s) present in the head
         # Log a meaningful reply.
         log(report, has_print=False)
         # Check if the reply contains ignored patterns.
@@ -207,10 +212,10 @@ def scan_head(replies_soup, thread_no, thread_url):
         else:
             for link in links_in_head:
                 source_url = link['href']
-                downloader.download(source_url, thread_no, 1, prev_pause, prev_prev_pause)
+                downloader.download(source_url, thread_id, 1, prev_pause, prev_prev_pause)
 
 
-def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
+def scan_content(replies_soup, reply: bs4.element.Tag, thread_id, thread_url):
     try:
         global prev_pause, prev_prev_pause
         links_in_reply = reply.select('div.th-contents > a.link')
@@ -228,7 +233,7 @@ def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
         # Log every reply.
         log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
-        if links_in_reply or spec_present:
+        if links_in_reply or spec_present or contact_present:
             # Log a meaningful reply.
             log(report, has_print=False)
 
@@ -239,7 +244,7 @@ def scan_content(replies_soup, reply: bs4.element.Tag, thread_no, thread_url):
             else:
                 for link in links_in_reply:
                     source_url = link['href']
-                    downloader.download(source_url, thread_no, int(reply_no), prev_pause, prev_prev_pause)
+                    downloader.download(source_url, thread_id, int(reply_no), prev_pause, prev_prev_pause)
     except Exception as reply_exception:
         log_file_name = 'exception-reply.pv'
         log('Error: Reply scanning failed on %s.' % thread_url, has_tst=True)
@@ -322,20 +327,20 @@ def scan_threads(soup) -> int:
         thread_id = int(str(thread['href']).split('/')[-1])
         thread_url = common.Constants.ROOT_DOMAIN + common.Constants.CAUTION_PATH + '/' + str(thread_id)
         thread_title = thread.select_one('span.title').string
-        reply_count = None
 
-        reply_count_str = thread.select_one('span.count').string
         # The count value is an estimate at this stage.
         # Difference by 1~2 might occur due to the newly posted replies while scanning.
-        if reply_count_str.isdigit():
-            reply_count = int(reply_count_str)
-        elif '닫힘' in reply_count_str:
-            consecutive_digits = re.search("[1-9][0-9].{0,2}", reply_count_str)
-            if consecutive_digits:
-                reply_count = consecutive_digits
-        # No clues of reply count.
-        if reply_count is None:
+        reply_count_str = thread.select_one('span.count').string
+        reply_count_match = re.search("[1-9][0-9]{0,2}", reply_count_str)
+        if reply_count_match:
+            reply_count = int(reply_count_match.group())
+        else:
+            # Cannot retrieve the reply count. Assume the largest number.
             reply_count = Constants.MAX_REPLIES_POSSIBLE
+            if '완결' in reply_count_str:
+                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url), has_tst=True)
+            if '닫힘' in reply_count_str:
+                log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url,), has_tst=True)
 
         # Check if the count has been increased.
         # If so, scan to check if there are links.
@@ -354,9 +359,11 @@ def scan_threads(soup) -> int:
                     break
             else:  # No pattern matched. Scan replies of the thread.
                 try:
-                    if new_count >= Constants.MAX_REPLIES_VISIBLE:
+                    if reply_count_match and new_count >= Constants.MAX_REPLIES_VISIBLE:
                         log('\n%d new replies on %s' % (new_count, thread_url), has_tst=True)
-                    scan_thread(thread_id, last_reply_count, reply_count == 1)
+                    scan_thread(thread_id, last_reply_count,
+                                head_only=reply_count == 1,
+                                is_reply_count_readable=reply_count_match is not None)
                 except Exception as thread_exception:
                     log_file_name = 'exception-thread.pv'
                     exception_last_line = str(thread_exception).splitlines()[-1]
