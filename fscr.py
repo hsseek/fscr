@@ -337,16 +337,19 @@ def scan_threads(soup) -> int:
         else:
             # Cannot retrieve the reply count. Assume the largest number.
             reply_count = Constants.MAX_REPLIES_POSSIBLE
-            if '완결' in reply_count_str:
-                log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url), has_tst=True)
-            if '닫힘' in reply_count_str:
-                log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url,), has_tst=True)
 
         # Check if the count has been increased.
         # If so, scan to check if there are links.
         last_reply_count = thread_db.get_reply_count(thread_id)
         new_count = reply_count - last_reply_count
-        if new_count > 0:
+        if new_count > 0:  # It has changed since the last scan.
+            # Report irregular value for the reply count.
+            if not reply_count_match:
+                if '완결' in reply_count_str:
+                    log('\n<%s> reached the limit.(%s)' % (thread_title, thread_url), has_tst=True)
+                if '닫힘' in reply_count_str:
+                    log('\n<%s> has been blocked.(%s)' % (thread_title, thread_url,), has_tst=True)
+
             # Accumulate the counts to estimate a proper pause at this stage.
             sum_reply_count_to_scan += new_count
             # Filter by titles.
