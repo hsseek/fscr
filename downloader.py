@@ -104,7 +104,8 @@ def wait_finish_downloading(temp_dir_path: str, timeout: int):
                 print('Downloading stalled. (%d/%d)' % (seconds, timeout))
                 consecutive_stalling += 1
             else:
-                log('Warning: Download progress stopped.')
+                log('Warning: Download progress stopped.(%s present, size of %d Mb.)'
+                    % (os.listdir(temp_dir_path), current_size))
                 return False
         # Report
         if current_size != last_size:

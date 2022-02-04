@@ -182,9 +182,10 @@ def has_contacts(reply) -> bool:
         if not isinstance(content, bs4.element.Tag):  # Plain text
             content_str += content.text + '\n'
     if re.search("[a-z][0-9a-z]{4,}", content_str, re.IGNORECASE):
-        return True
-    else:
-        return False
+        # If all the four letters are the same, it must be an expression rather than a contact.
+        if not re.search(r"([a-z])(\1{3,})", content_str, re.IGNORECASE):
+            return True
+    return False
 
 
 def scan_head(replies_soup, thread_id, thread_url):
