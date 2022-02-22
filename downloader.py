@@ -78,7 +78,7 @@ def __convert_webp_to_png(stored_dir, filename):
     os.remove(stored_path)
 
 
-def __check_tmp_download(dir_path: str) -> bool:
+def __exist_tmp_download(dir_path: str) -> bool:
     tmp_extension = 'crdownload'
     for file_name in os.listdir(dir_path):
         if tmp_extension in file_name:
@@ -97,16 +97,17 @@ def wait_finish_downloading(temp_dir_path: str, timeout: int):
     while seconds <= timeout:
         current_size = sum(os.path.getsize(f) for f in glob(temp_dir_path + '*') if os.path.isfile(f))
         if current_size == last_size:
-            if current_size > 0 and not __check_tmp_download(temp_dir_path):
+            if current_size > 0 and not __exist_tmp_download(temp_dir_path):
                 # Size not increasing because the download has been finished.
                 return True
-            elif consecutive_stalling < 12:  # .crdownload file exists.
-                print('Downloading stalled. (%d/%d)' % (seconds, timeout))
-                consecutive_stalling += 1
-            else:
-                log('Warning: Download progress stopped.(%s present, size of %d Mb.)'
-                    % (os.listdir(temp_dir_path), current_size))
-                return False
+            else:  # size = 0 or .crdownload file exists.
+                if consecutive_stalling < 12:
+                    print('Downloading stalled. (%d/%d)' % (seconds, timeout))
+                    consecutive_stalling += 1
+                else:
+                    log('Warning: Download not progressing.(%s present, size of %d bytes.)'
+                        % (os.listdir(temp_dir_path), current_size))
+                    return False
         # Report
         if current_size != last_size:
             print('%.1f -> %.1f MB' % (last_size / 1000000, current_size / 1000000))
@@ -128,10 +129,10 @@ def download(source_url: str, thread_no: int, reply_no: int, prev_pause: float, 
         target = __extract_download_target(source_url, thread_no, reply_no, prev_pause, prev_prev_pause)
         if target is not None:  # If None, a respective error message has been issued in __extract method.
             file_url, file_name = target
-            request = requests.get(file_url, stream=True)
+            session = requests.get(file_url, stream=True)
             file_path = os.path.join(Constants.DL_DESTINATION_PATH, file_name)
             with open(file_path, 'wb') as f:
-                for chunk in request.iter_content(chunk_size=1024 * 8):
+                for chunk in session.iter_content(chunk_size=1024 * 8):
                     if chunk:
                         f.write(chunk)
                         f.flush()
@@ -298,7 +299,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
         target_tag = soup.select_one('div#image-viewer-container > img')
         if not target_tag:  # An empty tag, returning None.
             if soup.select_one('div.page-not-found'):
-                log('Error: Cannot download imgbb link.', has_tst=True)
+                log('Sorry, annot download imgbb link.', has_tst=True)
             else:
                 log('Error: Unknown structure on ' + domain + '\n\n' + soup.prettify(), str(thread_no))
         else:  # The image link tag present
@@ -343,7 +344,7 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
                                       ('postimg', thread_no, reply_no, __format_file_name(file_name))
                 return target_url, formatted_file_name
             else:  # An empty tag, returning None.
-                log('Error: Cannot download postimg link.' % reply_no, has_tst=True)
+                log('Sorry, cannot download postimg link.' % reply_no, has_tst=True)
                 log('[ - ] <- %.f" \t<- %.f"\t: %s #%d  \t-!->\t%s' %
                     (prev_pause, prev_prev_pause, thread_url, reply_no, source_url),
                     file_name=Constants.DL_LOG_FILE, has_tst=True)
@@ -371,9 +372,13 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
     elif domain == 'sendvid.com':
         log('Unusual upload: sendvid.org.')
     elif domain == 'open.kakao.com':
-        log('(Contact present)')
+        log('(Kakao Talk contact present)')
+    elif domain == 't.me':
+        log('(Telegram contact present)')
     elif domain == 'freethread.net':
         print('%s quoted.' % source_url)
+    elif 'youtube.com' in domain:
+        pass
     elif domain == 'image.kilho.net':
         print("'image.kilho.net' quoted.")
     else:
@@ -381,10 +386,11 @@ def __extract_download_target(source_url: str, thread_no: int, reply_no: int,
 
 
 def retrieve_content_type(target_url):
+    session = requests.Session()
     try:
-        session = requests.Session()
         headers = session.get(target_url).headers['Content-Type'].split('/')
-        session.close()
         return headers
     except Exception as header_exception:
         log('Error: The source has a wrong header.(%s)' % header_exception)
+    finally:
+        session.close()

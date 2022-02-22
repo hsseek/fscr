@@ -176,16 +176,17 @@ def has_specs(reply) -> bool:
         return False
 
 
-def has_contacts(reply) -> bool:
+def has_contacts(reply) -> str:
     content_str = ''
     for content in reply.select_one('div.th-contents'):
         if not isinstance(content, bs4.element.Tag):  # Plain text
             content_str += content.text + '\n'
-    if re.search("[a-z][0-9a-z]{4,}", content_str, re.IGNORECASE):
-        # If all the four letters are the same, it must be an expression rather than a contact.
-        if not re.search(r"([a-z])(\1{3,})", content_str, re.IGNORECASE):
-            return True
-    return False
+    if re.search("라인|아이디|ID|텔레", content_str, re.IGNORECASE):
+        id_match = re.search("[a-z][0-9a-z]{4,}", content_str, re.IGNORECASE)
+        if id_match:
+            # If all the four letters are the same, it must be an expression rather than a contact.
+            if not re.search(r"([a-z])(\1{3,})", content_str, re.IGNORECASE):
+                return id_match.group()
 
 
 def scan_head(replies_soup, thread_id, thread_url):
@@ -193,17 +194,17 @@ def scan_head(replies_soup, thread_id, thread_url):
     head = replies_soup.select_one('div.thread-first-reply')
     links_in_head = head.select('a.link')
     spec_present = has_specs(head)
-    contact_present = has_contacts(head)
+    contact_str = has_contacts(head)
 
     report = compose_reply_report(replies_soup, thread_url, head, 1)
     if spec_present:
         report += '\n(Specs present)'
-    if contact_present:
-        report += '\n(Contact present)'
+    if contact_str:
+        report += '\n(Contact present: %s)' % contact_str
     # Log every reply.
     log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
-    if links_in_head or spec_present or contact_present:  # Link(s) present in the head
+    if links_in_head or spec_present or contact_str:  # Link(s) present in the head
         # Log a meaningful reply.
         log(report, has_print=False)
         # Check if the reply contains ignored patterns.
@@ -217,37 +218,44 @@ def scan_head(replies_soup, thread_id, thread_url):
 
 
 def scan_content(replies_soup, reply: bs4.element.Tag, thread_id, thread_url):
+    log_file_name = 'exception-reply.pv'
+
     try:
         global prev_pause, prev_prev_pause
         links_in_reply = reply.select('div.th-contents > a.link')
         spec_present = has_specs(reply)
-        contact_present = has_contacts(reply)
+        contact_str = has_contacts(reply)
 
         # Retrieve the reply information.
-        reply_no_str = reply.select_one('div.reply-info > span.reply-offset').text
-        reply_no = int(reply_no_str.strip().replace('#', ''))
-        report = compose_reply_report(replies_soup, thread_url, reply, reply_no)
-        if spec_present:
-            report += '\n(Specs present)'
-        if contact_present:
-            report += '\n(Contact present)'
-        # Log every reply.
-        log(report, Constants.REPLY_LOG_FILE, has_tst=True)
+        reply_no_tag = reply.select_one('div.reply-info > span.reply-offset')
+        if reply_no_tag:
+            reply_no_str = reply_no_tag.text
+            reply_no = int(reply_no_str.strip().replace('#', ''))
+            report = compose_reply_report(replies_soup, thread_url, reply, reply_no)
+            if spec_present:
+                report += '\n(Specs present)'
+            if contact_str:
+                report += '\n(Contact present: %s)' % contact_str
+            # Log every reply.
+            log(report, Constants.REPLY_LOG_FILE, has_tst=True)
 
-        if links_in_reply or spec_present or contact_present:
-            # Log a meaningful reply.
-            log(report, has_print=False)
+            if links_in_reply or spec_present or contact_str:
+                # Log a meaningful reply.
+                log(report, has_print=False)
 
-            # Check if the reply contains ignored patterns.
-            ignored_pattern = has_ignored_content(reply)
-            if ignored_pattern:
-                log('(Skipping "%s")' % ignored_pattern)
-            else:
-                for link in links_in_reply:
-                    source_url = link['href']
-                    downloader.download(source_url, thread_id, int(reply_no), prev_pause, prev_prev_pause)
+                # Check if the reply contains ignored patterns.
+                ignored_pattern = has_ignored_content(reply)
+                if ignored_pattern:
+                    log('(Skipping "%s")' % ignored_pattern)
+                else:
+                    for link in links_in_reply:
+                        source_url = link['href']
+                        downloader.download(source_url, thread_id, int(reply_no), prev_pause, prev_prev_pause)
+        else:
+            log('Warning: Unusual reply')
+            log('\n\n[Reply source]\n' + reply.prettify(), file_name=log_file_name)
+
     except Exception as reply_exception:
-        log_file_name = 'exception-reply.pv'
         log('Error: Reply scanning failed on %s.' % thread_url, has_tst=True)
         log('Exception: %s\n[Traceback]\n%s' % (reply_exception, traceback.format_exc()), file_name=log_file_name)
         log('\n\n[Reply source]\n' + reply.prettify(), file_name=log_file_name)
@@ -266,8 +274,8 @@ def has_ignored_content(reply):
 
 
 def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
-    double_line = '===================='
-    dashed_line = '--------------------'
+    double_line = '================'
+    dashed_line = '----------------'
     thread_title = soup.select_one('div.thread-info > h3.title').next_element
     user_id_tag = reply.select_one('span.user-id')
     user_name_tag = reply.select_one('span.name')
@@ -284,9 +292,9 @@ def compose_reply_report(soup, thread_url, reply, reply_no) -> str:
         log('Error: Unknown user_id structure.(%s)' % thread_url)
         log('\n\n[Reply source]\n' + reply.prettify(),
             file_name='error-reply-user-id.pv')
-    header = '\n' + double_line + '\n' + '<%s>  #%d  %s  (%s)' % (thread_title, reply_no, user_id, thread_url)
+    header = '\n' + double_line + '\n' + '<%s>  #%d  %s  %s' % (thread_title, reply_no, user_id, thread_url)
     if both_filled:
-        header += '%s <- Name specified' % user_name_tag.text
+        header += '  %s <- Name specified' % user_name_tag.text
     report = header + '\n' + __format_reply_content(reply) + '\n' + dashed_line
     return report
 
@@ -364,7 +372,8 @@ def scan_threads(soup) -> int:
             else:  # No pattern matched. Scan replies of the thread.
                 try:
                     if reply_count_match and new_count >= Constants.MAX_REPLIES_VISIBLE:
-                        log('\n%d new replies on %s' % (new_count, thread_url), has_tst=True)
+                        log('\nSkipping %d unread replies on %s' %
+                            (new_count - Constants.MAX_REPLIES_VISIBLE, thread_url), has_tst=True)
                     scan_thread(thread_id, last_reply_count,
                                 head_only=reply_count == 1,
                                 is_reply_count_readable=reply_count_match is not None)
